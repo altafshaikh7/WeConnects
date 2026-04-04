@@ -8,11 +8,25 @@ connectDB();
 
 const app = express();
 
-app.use(cors());
+// ✅ CORS (deployment ready)
+app.use(cors({
+  origin: "*"
+}));
+
 app.use(express.json());
 
+// ✅ Routes
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/profile", require("./routes/profileRoutes"));
 
-app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000 🚀");
+// ✅ Test route
+app.get("/", (req, res) => {
+  res.send("API Running 🚀");
+});
+
+// ✅ SAFE PORT
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
