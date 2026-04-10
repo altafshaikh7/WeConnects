@@ -28,18 +28,19 @@ function Login() {
         }
       );
 
-      console.log(res.data);
-
-      // 🔐 TOKEN SAVE
       localStorage.setItem("token", res.data.token);
 
       alert("Login Successful ✅");
-
-      navigate("/home"); // next page
+      navigate("/home");
 
     } catch (err) {
       setError(err.response?.data?.msg || "Login failed");
     }
+  };
+
+  // 🔥 GOOGLE LOGIN
+  const handleGoogleLogin = () => {
+    window.open("http://localhost:5000/api/auth/google", "_self");
   };
 
   return (
@@ -62,7 +63,7 @@ function Login() {
         {/* Email */}
         <input
           type="text"
-          placeholder="Email or Phone"
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full border border-gray-400 p-3 rounded-md mb-4 outline-none focus:ring-2 focus:ring-[#0a66c2]"
@@ -85,11 +86,15 @@ function Login() {
           </span>
         </div>
 
-        <p className="text-[#0a66c2] text-sm mb-5 cursor-pointer font-medium">
+        {/* Forgot Password */}
+        <p
+          onClick={() => navigate("/forgot-password")}
+          className="text-[#0a66c2] text-sm mb-5 cursor-pointer font-medium"
+        >
           Forgot password?
         </p>
 
-        {/* Button */}
+        {/* Login Button */}
         <button
           onClick={handleLogin}
           disabled={!email || !password}
@@ -109,8 +114,11 @@ function Login() {
           <div className="flex-1 h-[1px] bg-gray-300"></div>
         </div>
 
-        {/* Google */}
-        <button className="w-full flex items-center justify-center gap-3 border border-gray-300 py-3 rounded-full hover:bg-gray-100">
+        {/* 🔥 GOOGLE LOGIN */}
+        <button
+          onClick={handleGoogleLogin}
+          className="w-full flex items-center justify-center gap-3 border border-gray-300 py-3 rounded-full hover:bg-gray-100"
+        >
           <img
             src="https://www.svgrepo.com/show/475656/google-color.svg"
             alt="google"
