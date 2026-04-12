@@ -15,13 +15,19 @@ const userSchema = new mongoose.Schema({
     required: true,
   },
 
-  // 🔐 Forgot Password Fields
-  resetToken: {
+  // 🔥 PROFILE
+  profileImage: {
     type: String,
+    default: "",
   },
-  resetTokenExpire: {
-    type: Date,
+  bio: {
+    type: String,
+    default: "",
   },
+
+  // 🔐 Forgot Password
+  resetToken: String,
+  resetTokenExpire: Date,
 });
 
 module.exports = mongoose.model("User", userSchema);
