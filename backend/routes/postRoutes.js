@@ -9,10 +9,10 @@ const {
   getPosts,
 } = require("../controllers/postController");
 
-// 🔥 PROTECTED CREATE
-router.post("/", auth, upload.single("image"), createPost);
+// ✅ FIXED ORDER (multer पहले, auth बाद में)
+router.post("/", upload.array("images", 5), auth, createPost);
 
-// 🔓 PUBLIC GET
+// GET POSTS
 router.get("/", getPosts);
 
 module.exports = router;

@@ -6,19 +6,30 @@ exports.createPost = async (req, res) => {
     const { text } = req.body;
 
     console.log("BODY:", req.body);
-    console.log("FILE:", req.file);
-    console.log("USER:", req.user); // 🔥 DEBUG
+    console.log("FILES:", req.files);
+    console.log("USER:", req.user);
 
-    if ((!text || !text.trim()) && !req.file) {
-      return res.status(400).json({ msg: "Post must contain text or image" });
+    // ✅ validation
+    if ((!text || !text.trim()) && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({
+        msg: "Post must contain text or image",
+      });
     }
 
-    const image = req.file ? req.file.path : "";
+    let imageUrls = [];
+
+    // ✅ Cloudinary safe URL extraction
+    if (req.files && req.files.length > 0) {
+      imageUrls = req.files.map((file) => {
+        // safest option
+        return file.path || file.secure_url || "";
+      }).filter(Boolean);
+    }
 
     const post = await Post.create({
       text: text?.trim() || "",
-      image,
-      user: req.user._id, // ✅ FIXED
+      images: imageUrls,
+      user: req.user._id,
     });
 
     res.status(201).json(post);
@@ -36,7 +47,7 @@ exports.createPost = async (req, res) => {
 exports.getPosts = async (req, res) => {
   try {
     const posts = await Post.find()
-      .populate("user", "name profileImage")
+      .populate("user", "name profileImage") // ✅ correct field
       .sort({ createdAt: -1 });
 
     res.json(posts);
