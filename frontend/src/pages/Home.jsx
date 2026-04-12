@@ -8,34 +8,54 @@ import { useNavigate } from "react-router-dom";
 function Home() {
   const navigate = useNavigate();
 
+  // ✅ SAFE AUTH CHECK
   useEffect(() => {
     const token = localStorage.getItem("token");
 
     if (!token) {
-      navigate("/");
+      navigate("/", { replace: true });
     }
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="bg-[#f3f2ef] min-h-screen">
 
+      {/* NAVBAR */}
       <Navbar />
 
-      <div className="grid grid-cols-12 gap-6 px-10 mt-6">
+      {/* MAIN */}
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 md:px-6 mt-4">
 
-        <div className="col-span-3">
-          <LeftSidebar />
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-        <div className="col-span-6">
-          <Feed />
-        </div>
+          {/* LEFT SIDEBAR */}
+          <div className="hidden lg:block lg:col-span-3">
+            <LeftSidebar />
+          </div>
 
-        <div className="col-span-3">
-          <RightSidebar />
+          {/* FEED (MAIN) */}
+          <div className="col-span-1 lg:col-span-6">
+            <Feed />
+          </div>
+
+          {/* RIGHT SIDEBAR */}
+          <div className="hidden lg:block lg:col-span-3">
+            <RightSidebar />
+          </div>
+
         </div>
 
       </div>
+
+      {/* ✅ OPTIONAL MOBILE FIX (BOTTOM NAV FEEL) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-2 text-xs sm:hidden">
+        <span>🏠</span>
+        <span>👥</span>
+        <span>➕</span>
+        <span>💬</span>
+        <span>👤</span>
+      </div>
+
     </div>
   );
 }
