@@ -1,157 +1,210 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import axios from "axios";
 import { X, Image as ImageIcon } from "lucide-react";
+import EmojiPicker from "emoji-picker-react";
+import imageCompression from "browser-image-compression";
 
 function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const [text, setText] = useState("");
-  const [image, setImage] = useState(null);
-  const [preview, setPreview] = useState("");
+  const [images, setImages] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const fileInputRef = useRef(null);
 
-  // ✅ API URL (DEPLOY SAFE)
-  const API = import.meta.env.VITE_API_URL;
+  // ✅ FINAL API FIX
+  const API = "http://127.0.0.1:5000";
+
+  // ✅ Load user
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (user) setCurrentUser(user);
+    } catch {}
+  }, []);
+
+  // ✅ Cleanup previews
+  useEffect(() => {
+    return () => previews.forEach((p) => URL.revokeObjectURL(p));
+  }, [previews]);
 
   if (!isOpen) return null;
 
-  const handleChooseImage = () => {
-    fileInputRef.current?.click();
-  };
+  // 📸 Handle images
+  const handleFiles = async (files) => {
+    const newImages = [];
+    const newPreviews = [];
 
-  const handleImageChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    for (let file of files) {
+      if (!file.type.startsWith("image/")) continue;
 
-    setImage(file);
+      try {
+        const compressed = await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1280,
+          useWebWorker: true,
+        });
 
-    // ✅ safe preview
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-  };
-
-  const handleRemoveImage = () => {
-    setImage(null);
-    setPreview("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+        newImages.push(compressed);
+        newPreviews.push(URL.createObjectURL(compressed));
+      } catch (err) {
+        console.error("Compression error:", err);
+      }
     }
+
+    setImages((prev) => [...prev, ...newImages]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
   };
 
+  const handleEmojiClick = (e) => {
+    setText((prev) => prev + e.emoji);
+  };
+
+  const removeImage = (index) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // 🚀 FINAL SUBMIT
   const handleSubmit = async () => {
-    if (!text.trim() && !image) return;
+    if (!text.trim() && images.length === 0) return;
 
     try {
+      console.log("POST CLICKED");
+      console.log("Images:", images);
+
       setLoading(true);
 
       const formData = new FormData();
       formData.append("text", text);
-      if (image) formData.append("image", image);
 
-      // ✅ SAFE TOKEN
-      const token = localStorage.getItem("token");
-
-      await axios.post(`${API}/api/posts`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: token || "",
-        },
+      images.forEach((img, index) => {
+        const filename = img.name || `image-${Date.now()}-${index}.jpg`;
+        formData.append("images", img, filename);
       });
 
-      // RESET
+      const token = localStorage.getItem("token");
+
+      const res = await axios.post(`${API}/api/posts`, formData, {
+        headers: {
+          Authorization: token || "",
+        },
+        withCredentials: true,
+      });
+
+      console.log("SUCCESS:", res.data);
+
       setText("");
-      setImage(null);
-      setPreview("");
+      setImages([]);
+      setPreviews([]);
 
       onClose();
       onPostCreated();
 
     } catch (err) {
-      console.error("Post error:", err);
-
-      alert(
-        err?.response?.data?.msg ||
-        err?.message ||
-        "Post create failed ❌"
-      );
+      console.error("POST ERROR:", err);
+      alert("Post failed ❌");
     } finally {
       setLoading(false);
     }
   };
 
-  const canPost = text.trim() || image;
+  const canPost = text.trim() || images.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-2 sm:px-4">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-2">
 
-      {/* MODAL */}
-      <div className="w-full max-w-md sm:max-w-xl bg-white rounded-xl shadow-xl overflow-hidden">
+      <div className="w-full max-w-xl bg-white rounded-xl shadow-lg flex flex-col">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b">
-          <h3 className="text-lg sm:text-xl font-semibold">
-            Create Post
-          </h3>
-
-          <button onClick={onClose}>
-            <X size={22} />
-          </button>
+        <div className="flex justify-between items-center px-5 py-4 border-b">
+          <h3 className="text-lg font-semibold">Create Post</h3>
+          <X onClick={onClose} className="cursor-pointer" />
         </div>
 
-        {/* TEXT */}
-        <div className="px-4 sm:px-6 py-4">
+        {/* BODY */}
+        <div className="p-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+
+          {/* USER */}
+          <div className="flex items-center gap-3">
+            <img
+              src={
+                currentUser?.profilePic ||
+                `https://ui-avatars.com/api/?name=${currentUser?.name || "User"}`
+              }
+              className="w-12 h-12 rounded-full object-cover border"
+            />
+
+            <div>
+              <p className="font-semibold">{currentUser?.name || "User"}</p>
+              <p className="text-xs text-gray-500">Post to Anyone 🌍</p>
+            </div>
+          </div>
+
+          {/* TEXT */}
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="What do you want to talk about?"
-            className="w-full min-h-[120px] sm:min-h-[150px] outline-none text-sm sm:text-lg"
+            className="w-full min-h-[120px] outline-none text-lg"
           />
 
-          {/* PREVIEW */}
-          {preview && (
-            <div className="mt-3 relative">
-              <img
-                src={preview}
-                alt="preview"
-                className="w-full rounded"
-              />
-
-              <button
-                onClick={handleRemoveImage}
-                className="absolute top-2 right-2 bg-black text-white px-2 py-1 text-xs rounded"
-              >
-                Remove
-              </button>
+          {/* IMAGES */}
+          {previews.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {previews.map((src, i) => (
+                <div key={i} className="relative bg-black rounded-xl overflow-hidden">
+                  <img src={src} className="w-full h-48 object-contain" />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute top-2 right-2 bg-black/70 text-white px-2 text-xs rounded"
+                  >
+                    X
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* ACTIONS */}
-        <div className="px-4 sm:px-6 flex gap-3">
-          <button onClick={handleChooseImage}>
-            <ImageIcon size={20} />
+        {/* FOOTER */}
+        <div className="flex items-center justify-between px-5 py-3 border-t">
+
+          <div className="flex items-center gap-5">
+            <button onClick={() => fileInputRef.current.click()}>
+              <ImageIcon size={20} />
+            </button>
+
+            <button onClick={() => setShowEmoji(!showEmoji)}>😀</button>
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={!canPost || loading}
+            className={`px-5 py-2 rounded-full text-sm font-medium
+              ${canPost ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500"}
+            `}
+          >
+            {loading ? "Posting..." : "Post"}
           </button>
 
           <input
             type="file"
+            multiple
             ref={fileInputRef}
-            onChange={handleImageChange}
+            onChange={(e) => handleFiles(e.target.files)}
             className="hidden"
           />
         </div>
 
-        {/* FOOTER */}
-        <div className="border-t px-4 sm:px-6 py-3 sm:py-4 flex justify-end">
-          <button
-            onClick={handleSubmit}
-            disabled={!canPost || loading}
-            className="bg-blue-600 text-white px-4 sm:px-5 py-2 rounded-full text-sm"
-          >
-            {loading ? "Posting..." : "Post"}
-          </button>
-        </div>
-
+        {/* EMOJI */}
+        {showEmoji && (
+          <div className="px-5 pb-4">
+            <EmojiPicker onEmojiClick={handleEmojiClick} />
+          </div>
+        )}
       </div>
     </div>
   );
