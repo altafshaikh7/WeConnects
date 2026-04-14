@@ -1,13 +1,46 @@
 const mongoose = require("mongoose");
 
 const postSchema = new mongoose.Schema({
-  text: String,
-  image: String,
-  images: [String],
+  text: {
+    type: String,
+    default: "",
+  },
+
+  // ✅ MULTIPLE IMAGES
+  images: {
+    type: [String],
+    default: [],
+  },
+
+  // ✅ USER
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
+
+  // ✅ LIKES
+  likes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+
+  // ✅ COMMENTS
+  comments: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      text: String,
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
+
   createdAt: {
     type: Date,
     default: Date.now,

@@ -7,12 +7,20 @@ const auth = require("../middleware/auth");
 const {
   createPost,
   getPosts,
+  toggleLike,
+  addComment,
 } = require("../controllers/postController");
 
-// ✅ FIXED ORDER (multer पहले, auth बाद में)
+// ✅ CREATE POST (MULTIPLE IMAGES)
 router.post("/", upload.array("images", 5), auth, createPost);
 
-// GET POSTS
+// ✅ GET POSTS
 router.get("/", getPosts);
+
+// ✅ LIKE
+router.post("/:id/like", auth, toggleLike);
+
+// ✅ COMMENT
+router.post("/:id/comment", auth, addComment);
 
 module.exports = router;
