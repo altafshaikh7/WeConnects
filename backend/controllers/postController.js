@@ -50,6 +50,21 @@ exports.getPosts = async (req, res) => {
   }
 };
 
+// ================= GET CURRENT USER POSTS =================
+exports.getMyPosts = async (req, res) => {
+  try {
+    const posts = await Post.find({ user: req.user._id })
+      .populate("user", "name profileImage")
+      .populate("comments.user", "name")
+      .sort({ createdAt: -1 });
+
+    res.json(posts);
+  } catch (err) {
+    console.error("MY POSTS ERROR:", err);
+    res.status(500).json({ error: "Unable to fetch user posts ❌" });
+  }
+};
+
 // ================= LIKE / UNLIKE =================
 exports.toggleLike = async (req, res) => {
   try {
@@ -75,11 +90,38 @@ exports.toggleLike = async (req, res) => {
 
     await post.save();
 
+    await post
+      .populate("user", "name profileImage")
+      .populate("comments.user", "name");
+
     res.json(post);
 
   } catch (err) {
     console.error("LIKE ERROR:", err);
     res.status(500).json({ msg: "Like failed ❌" });
+  }
+};
+
+// ================= POST IMPRESSIONS =================
+exports.incrementImpression = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found ❌" });
+    }
+
+    post.impressions = (post.impressions || 0) + 1;
+    await post.save();
+
+    await post
+      .populate("user", "name profileImage")
+      .populate("comments.user", "name");
+
+    res.json(post);
+  } catch (err) {
+    console.error("IMPRESSION ERROR:", err);
+    res.status(500).json({ msg: "Could not update impressions ❌" });
   }
 };
 

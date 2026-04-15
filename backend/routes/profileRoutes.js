@@ -3,44 +3,31 @@ const router = express.Router();
 
 const auth = require("../middleware/auth");
 const upload = require("../middleware/upload");
-const User = require("../models/User");
+const {
+  getProfile,
+  updateProfile,
+  deleteBannerImage,
+  deleteProfileImage,
+} = require("../controllers/profileController");
 
-// ================= GET PROFILE =================
-router.get("/", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// ================= GET MY PROFILE =================
+router.get("/", auth, getProfile);
 
 // ================= UPDATE PROFILE =================
-router.put("/", auth, upload.single("image"), async (req, res) => {
-  try {
-    const { name, bio } = req.body;
+router.put(
+  "/",
+  auth,
+  upload.fields([
+    { name: "profileImage", maxCount: 1 },
+    { name: "bannerImage", maxCount: 1 },
+  ]),
+  updateProfile
+);
 
-    let updateData = {
-      name,
-      bio,
-    };
+// ================= DELETE BANNER IMAGE =================
+router.delete("/banner", auth, deleteBannerImage);
 
-    // 🔥 Cloudinary image
-    if (req.file) {
-      updateData.profileImage = req.file.path;
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      updateData,
-      { new: true }
-    );
-
-    res.json(updatedUser);
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// ================= DELETE PROFILE IMAGE =================
+router.delete("/avatar", auth, deleteProfileImage);
 
 module.exports = router;

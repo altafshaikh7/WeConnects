@@ -3,11 +3,14 @@ const User = require("../models/User");
 
 const auth = async (req, res, next) => {
   try {
-    const token = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-    if (!token) {
+    if (!authHeader) {
       return res.status(401).json({ msg: "No token ❌" });
     }
+
+    // 🔥 FIX
+    const token = authHeader.split(" ")[1];
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
@@ -17,6 +20,7 @@ const auth = async (req, res, next) => {
       return res.status(404).json({ msg: "User not found ❌" });
     }
 
+    // ✅ Attach full user object for downstream controllers
     req.user = user;
 
     next();

@@ -41,6 +41,11 @@ const postSchema = new mongoose.Schema({
     },
   ],
 
+  impressions: {
+    type: Number,
+    default: 0,
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,

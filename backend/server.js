@@ -50,8 +50,14 @@ app.use("/api/auth", require("./routes/authRoutes"));
 // 👤 Profile routes
 app.use("/api/profile", require("./routes/profileRoutes"));
 
+// � User routes
+app.use("/api/users", require("./routes/userRoutes"));
+
 // 📝 Post routes
 app.use("/api/posts", require("./routes/postRoutes"));
+
+// 📰 News routes
+app.use("/api/news", require("./routes/newsRoutes"));
 
 // ================= TEST ROUTE =================
 app.get("/", (req, res) => {
