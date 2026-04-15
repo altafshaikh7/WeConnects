@@ -15,7 +15,7 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const fileInputRef = useRef(null);
 
   // ✅ FINAL API FIX
-  const API = "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
   // ✅ Load user
   useEffect(() => {
@@ -86,12 +86,12 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
       });
 
       const token = localStorage.getItem("token");
+      const authHeader = token ? `Bearer ${token}` : "";
 
       const res = await axios.post(`${API}/api/posts`, formData, {
         headers: {
-          Authorization: token || "",
+          Authorization: authHeader,
         },
-        withCredentials: true,
       });
 
       console.log("SUCCESS:", res.data);
@@ -131,7 +131,7 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
           <div className="flex items-center gap-3">
             <img
               src={
-                currentUser?.profilePic ||
+                currentUser?.profileImage ||
                 `https://ui-avatars.com/api/?name=${currentUser?.name || "User"}`
               }
               className="w-12 h-12 rounded-full object-cover border"

@@ -9,7 +9,7 @@ function Feed() {
   const [comments, setComments] = useState({});
   const [openComment, setOpenComment] = useState(null);
 
-  const API = import.meta.env.VITE_API_URL;
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
   // ✅ SAFE USER
   const currentUser =
@@ -33,19 +33,23 @@ function Feed() {
   const handleLike = async (postId) => {
     const token = localStorage.getItem("token");
 
+    const authHeader = token ? `Bearer ${token}` : "";
+
     // 🔥 UI UPDATE FIRST
     setPosts((prevPosts) =>
       prevPosts.map((post) => {
         if (post._id !== postId) return post;
 
         const isLiked = post?.likes?.some(
-          (id) => id === currentUser._id
+          (id) => String(id) === String(currentUser._id)
         );
 
         return {
           ...post,
           likes: isLiked
-            ? post.likes.filter((id) => id !== currentUser._id)
+            ? post.likes.filter(
+                (id) => String(id) !== String(currentUser._id)
+              )
             : [...post.likes, currentUser._id],
         };
       })
@@ -53,12 +57,20 @@ function Feed() {
 
     // 🔥 BACKEND CALL
     try {
-      await axios.post(
+      const res = await axios.post(
         `${API}/api/posts/${postId}/like`,
         {},
         {
-          headers: { Authorization: token || "" },
+          headers: { Authorization: authHeader },
         }
+      );
+
+      const updatedPost = res.data;
+
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId ? updatedPost : post
+        )
       );
     } catch (err) {
       console.log("Like failed:", err);
@@ -70,20 +82,27 @@ function Feed() {
   const handleComment = async (postId) => {
     try {
       const token = localStorage.getItem("token");
+      const authHeader = token ? `Bearer ${token}` : "";
 
       if (!comments[postId]?.trim()) return;
 
-      await axios.post(
+      const res = await axios.post(
         `${API}/api/posts/${postId}/comment`,
         { text: comments[postId] },
         {
-          headers: { Authorization: token || "" },
+          headers: { Authorization: authHeader },
         }
       );
 
-      setComments({ ...comments, [postId]: "" });
-      fetchPosts();
+      const updatedPost = res.data;
 
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId ? updatedPost : post
+        )
+      );
+
+      setComments({ ...comments, [postId]: "" });
     } catch (err) {
       console.log(err);
     }
@@ -116,18 +135,25 @@ function Feed() {
         ];
 
         const isLiked = post?.likes?.some(
-          (id) => id === currentUser._id
+          (id) => String(id) === String(currentUser._id)
         );
 
         return (
           <div key={post._id} className="bg-white rounded-xl border mb-4">
 
             <div className="p-4">
-              <h4 className="font-semibold">
-                {post?.user?.name || "User"}
-              </h4>
+              <div className="flex items-center gap-3">
+                <img
+                  src={post?.user?.profileImage || "https://via.placeholder.com/40"}
+                  alt="profile"
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <h4 className="font-semibold">
+                  {post?.user?.name || "User"}
+                </h4>
+              </div>
 
-              {post?.text && <p>{post.text}</p>}
+              {post?.text && <p className="mt-2">{post.text}</p>}
             </div>
 
             {/* IMAGES */}

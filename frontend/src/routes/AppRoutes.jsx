@@ -4,11 +4,12 @@ import Login from "../pages/Login";
 import Signup from "../pages/Signup";
 import Home from "../pages/Home";
 import Profile from "../pages/Profile";
+import Network from "../pages/Network";
 
 // 👇 NEW IMPORTS
 import ForgotPassword from "../pages/ForgotPassword";
 import ResetPassword from "../pages/ResetPassword";
-import GoogleSuccess from "../pages/GoogleSuccess"; // 🔥 ADD THIS
+import GoogleSuccess from "../pages/GoogleSuccess";
 
 function AppRoutes() {
   return (
@@ -21,6 +22,8 @@ function AppRoutes() {
 
         {/* 🏠 MAIN APP */}
         <Route path="/home" element={<Home />} />
+        <Route path="/network" element={<Network />} />
+        <Route path="/profile/:id" element={<Profile />} />
         <Route path="/profile" element={<Profile />} />
 
         {/* 🔁 FORGOT PASSWORD FLOW */}

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Menu, X, Home, Users, Search, MessageSquare, Bell, LogOut } from "lucide-react";
 import Logo from "./logo";
 
 function Navbar() {
@@ -8,7 +8,15 @@ function Navbar() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
+
+  const navItems = [
+    { label: "Home", icon: Home, path: "/home" },
+    { label: "Network", icon: Users, path: "/network" },
+  ];
+
+  const isActive = (path) => location.pathname === path;
 
   const logout = () => {
     localStorage.clear();
@@ -25,7 +33,7 @@ function Navbar() {
 
           {/* SEARCH */}
           <div className="hidden sm:flex items-center bg-[#eef3f8] px-2 sm:px-3 py-1.5 sm:py-2 rounded-md w-36 sm:w-56 md:w-72">
-            <span className="text-gray-500 text-sm mr-2">🔍</span>
+            <Search size={16} className="text-gray-500 mr-2" />
             <input
               type="text"
               placeholder="Search"
@@ -39,31 +47,32 @@ function Navbar() {
 
           {/* DESKTOP MENU */}
           <div className="hidden md:flex items-center gap-6">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  className={`flex flex-col items-center cursor-pointer transition ${
+                    isActive(item.path)
+                      ? "text-black"
+                      : "text-gray-600 hover:text-black"
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                </div>
+              );
+            })}
 
             <div className="flex flex-col items-center cursor-pointer hover:text-black">
-              <span>🏠</span>
-              <span>Home</span>
-            </div>
-
-            <div className="flex flex-col items-center cursor-pointer hover:text-black">
-              <span>👥</span>
-              <span>Network</span>
-            </div>
-
-            <div className="flex flex-col items-center cursor-pointer hover:text-black">
-              <span>💼</span>
-              <span>Jobs</span>
-            </div>
-
-            <div className="flex flex-col items-center cursor-pointer hover:text-black">
-              <span>💬</span>
+              <MessageSquare size={18} />
               <span>Messaging</span>
             </div>
 
             <div className="flex flex-col items-center cursor-pointer hover:text-black relative">
-              <span>🔔</span>
+              <Bell size={18} />
               <span>Notifications</span>
-
               <span className="absolute -top-1 right-2 bg-red-500 text-white text-[10px] px-1 rounded-full">
                 3
               </span>
@@ -71,10 +80,15 @@ function Navbar() {
           </div>
 
           {/* PROFILE */}
-          <div className="relative group hidden md:flex flex-col items-center cursor-pointer">
-            <div className="w-8 h-8 bg-[#0a66c2] text-white rounded-full flex items-center justify-center font-semibold">
-              {user?.name?.charAt(0) || "U"}
-            </div>
+          <div
+            className="relative group hidden md:flex flex-col items-center cursor-pointer"
+            onClick={() => navigate("/profile")}
+          >
+            <img
+              src={user?.profileImage || "https://via.placeholder.com/40"}
+              alt="user"
+              className="w-8 h-8 rounded-full object-cover"
+            />
 
             <span className="text-xs">Me</span>
 
@@ -85,7 +99,10 @@ function Navbar() {
               </p>
 
               <button
-                onClick={logout}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  logout();
+                }}
                 className="text-red-500 text-sm hover:underline"
               >
                 Logout

@@ -1,212 +1,167 @@
-import Navbar from "../components/Navbar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import Navbar from "../components/Navbar";
+import ProfileCard from "../components/ProfileCard";
 
 function Profile() {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const [user, setUser] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAllPosts, setShowAllPosts] = useState(false);
+  const navigate = useNavigate();
+  const { id } = useParams();
 
-  const [bio, setBio] = useState(
-    localStorage.getItem("bio") || ""
-  );
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const token = localStorage.getItem("token");
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const authHeader = token ? `Bearer ${token}` : "";
+  const isOwner = !id || String(id) === String(currentUser._id);
 
-  const [image, setImage] = useState(
-    localStorage.getItem("profileImage") || null
-  );
-
-  const [cover, setCover] = useState(
-    localStorage.getItem("coverImage") || null
-  );
-
-  const [skills, setSkills] = useState(
-    JSON.parse(localStorage.getItem("skills")) || []
-  );
-
-  const [input, setInput] = useState("");
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [tempBio, setTempBio] = useState(bio);
-
-  // 🔥 Save Bio (modal se)
-  const saveBio = async () => {
-    setBio(tempBio);
-    localStorage.setItem("bio", tempBio);
-
+  const fetchProfile = async () => {
     try {
-      await axios.post("http://localhost:5000/api/profile", {
-        bio: tempBio,
-        userId: user?._id,
+      const endpoint = isOwner ? `${API}/api/profile` : `${API}/api/users/${id}`;
+      const res = await axios.get(endpoint, {
+        headers: { Authorization: authHeader },
       });
+      setUser(res.data);
     } catch (err) {
-      console.log(err);
+      console.error("Profile fetch error:", err);
+      if (!token) navigate("/", { replace: true });
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      const endpoint = isOwner ? `${API}/api/posts/me` : `${API}/api/users/${id}/posts`;
+      const res = await axios.get(endpoint, {
+        headers: { Authorization: authHeader },
+      });
+      setPosts(res.data || []);
+    } catch (err) {
+      console.error("Posts fetch error:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/", { replace: true });
+      return;
     }
 
-    setIsOpen(false);
-  };
-
-  // 🔥 Upload Profile Image
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      localStorage.setItem("profileImage", reader.result);
-      setImage(reader.result);
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([fetchProfile(), fetchPosts()]);
+      setLoading(false);
     };
 
-    if (file) reader.readAsDataURL(file);
+    load();
+  }, [navigate, token, id]);
+
+  const refreshProfile = async () => {
+    await fetchProfile();
   };
 
-  // 🔥 Upload Cover Image
-  const handleCover = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
+  const displayedPosts = showAllPosts ? posts : posts.slice(0, 3);
 
-    reader.onloadend = () => {
-      localStorage.setItem("coverImage", reader.result);
-      setCover(reader.result);
-    };
-
-    if (file) reader.readAsDataURL(file);
-  };
-
-  // 🔥 Add Skill
-  const addSkill = () => {
-    if (!input) return;
-
-    const updated = [...skills, input];
-    setSkills(updated);
-    localStorage.setItem("skills", JSON.stringify(updated));
-    setInput("");
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F3F2EF] flex items-center justify-center">
+        <p className="text-[#666666]">Loading profile...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-[#f3f2ef] min-h-screen">
-
+    <div className="bg-[#F3F2EF] min-h-screen">
       <Navbar />
 
-      <div className="max-w-5xl mx-auto mt-6 px-4">
+      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <ProfileCard user={user} refreshProfile={refreshProfile} isOwner={isOwner} />
 
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-
-          {/* 🔥 COVER */}
-          <div className="relative h-40 bg-gray-300">
-            <img
-              src={cover || "https://via.placeholder.com/800x200"}
-              className="w-full h-full object-cover"
-            />
-
-            <label className="absolute top-2 right-2 bg-white px-3 py-1 text-sm rounded shadow cursor-pointer">
-              Edit Cover
-              <input type="file" onChange={handleCover} className="hidden" />
-            </label>
-          </div>
-
-          {/* 🔥 PROFILE IMAGE */}
-          <div className="relative">
-            <div className="absolute -top-14 left-6">
-              <img
-                src={image || "https://via.placeholder.com/100"}
-                className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-md"
-              />
-
-              <label className="absolute bottom-1 right-1 bg-white p-1 rounded-full cursor-pointer text-xs">
-                ✏️
-                <input type="file" onChange={handleImage} className="hidden" />
-              </label>
+        <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-lg font-semibold mb-3">{isOwner ? "Your Posts" : `${user?.name}'s Posts`}</h2>
+              {posts.length === 0 ? (
+                <p className="text-sm text-[#666666]">
+                  {isOwner ? "No posts yet. Create one from Home to display it here." : "No posts yet."}
+                </p>
+              ) : (
+                <>
+                  {displayedPosts.map((post) => (
+                    <div key={post._id} className="border rounded-xl p-4 mb-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <img
+                          src={user.profileImage}
+                          alt="avatar"
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div>
+                          <p className="font-semibold">{user.name}</p>
+                          <p className="text-xs text-[#666666]">
+                            {new Date(post.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      {post.text && <p className="text-sm mb-3">{post.text}</p>}
+                      {post.images?.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3">
+                          {post.images.map((img, index) => (
+                            <img
+                              key={index}
+                              src={img}
+                              alt={`post-${index}`}
+                              className="w-full rounded-xl object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-3 text-xs text-[#666666] flex justify-between">
+                        <span>{post.likes?.length || 0} likes</span>
+                        <span>{post.comments?.length || 0} comments</span>
+                      </div>
+                    </div>
+                  ))}
+                  {posts.length > 3 && !showAllPosts && (
+                    <button
+                      onClick={() => setShowAllPosts(true)}
+                      className="w-full text-center py-2 text-[#0A66C2] font-semibold hover:underline"
+                    >
+                      See More
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
-          {/* 🔥 USER INFO */}
-          <div className="px-6 pt-20 pb-4">
-
-            <h1 className="text-2xl font-semibold">{user?.name}</h1>
-
-            <p className="text-gray-500 text-sm">
-              Full Stack Developer 🚀
-            </p>
-
-            {/* EDIT BUTTON */}
-            <button
-              onClick={() => setIsOpen(true)}
-              className="mt-3 border px-3 py-1 rounded"
-            >
-              Edit Profile
-            </button>
-
-            {/* BIO */}
-            <p className="mt-3 text-sm">{bio}</p>
-
-            <hr className="my-4" />
-
-            {/* 🔥 SKILLS */}
-            <div>
-              <h2 className="font-semibold mb-2">Skills</h2>
-
-              <div className="flex gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Add skill"
-                  className="border p-2 rounded w-full"
-                />
-
-                <button
-                  onClick={addSkill}
-                  className="bg-[#0a66c2] text-white px-3 rounded"
-                >
-                  Add
-                </button>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {skills.map((skill, i) => (
-                  <span
-                    key={i}
-                    className="bg-gray-200 px-3 py-1 rounded-full text-sm"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-lg font-semibold mb-3">About</h2>
+              <p className="text-sm text-[#666666]">{user.bio || "No bio added."}</p>
             </div>
 
+            <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-lg font-semibold mb-3">Skills</h2>
+              <div className="flex flex-wrap gap-2">
+                {user.skills?.length > 0 ? (
+                  user.skills.map((skill, index) => (
+                    <span
+                      key={index}
+                      className="bg-[#E7F3FF] text-sm px-3 py-1 rounded-full"
+                    >
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm text-[#666666]">No skills added yet.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* 🔥 MODAL */}
-      {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
-
-          <div className="bg-white p-6 rounded-lg w-[350px]">
-
-            <h2 className="text-lg font-semibold mb-3">
-              Edit Profile
-            </h2>
-
-            <textarea
-              value={tempBio}
-              onChange={(e) => setTempBio(e.target.value)}
-              className="w-full border p-2 rounded"
-            />
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setIsOpen(false)}>
-                Cancel
-              </button>
-
-              <button
-                onClick={saveBio}
-                className="bg-[#0a66c2] text-white px-4 py-1 rounded"
-              >
-                Save
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

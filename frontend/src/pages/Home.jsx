@@ -1,7 +1,7 @@
 import Navbar from "../components/Navbar";
 import LeftSidebar from "../components/LeftSidebar";
 import Feed from "../components/Feed";
-import RightSidebar from "../components/RightSidebar";
+import NewsSection from "../components/NewsSection";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -40,7 +40,7 @@ function Home() {
 
           {/* RIGHT SIDEBAR */}
           <div className="hidden lg:block lg:col-span-3">
-            <RightSidebar />
+            <NewsSection />
           </div>
 
         </div>
