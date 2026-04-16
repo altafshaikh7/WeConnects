@@ -8,7 +8,7 @@ const Notifications = () => {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
@@ -31,7 +31,7 @@ const Notifications = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API}/api/notifications`, {
+      const res = await axios.get(`${API}/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data || []);
@@ -44,7 +44,7 @@ const Notifications = () => {
 
   const getUnreadCount = async () => {
     try {
-      const res = await axios.get(`${API}/api/notifications/unread/count`, {
+      const res = await axios.get(`${API}/notifications/unread/count`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUnreadCount(res.data.unreadCount || 0);
@@ -55,7 +55,7 @@ const Notifications = () => {
 
   const markAsRead = async (notificationId) => {
     try {
-      await axios.put(`${API}/api/notifications/${notificationId}/read`, {}, {
+      await axios.put(`${API}/notifications/${notificationId}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications((prev) =>
@@ -71,7 +71,7 @@ const Notifications = () => {
 
   const markAllAsRead = async () => {
     try {
-      await axios.put(`${API}/api/notifications/read/all`, {}, {
+      await axios.put(`${API}/notifications/read/all`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
@@ -83,7 +83,7 @@ const Notifications = () => {
 
   const deleteNotification = async (notificationId) => {
     try {
-      await axios.delete(`${API}/api/notifications/${notificationId}`, {
+      await axios.delete(`${API}/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications((prev) => prev.filter((notif) => notif._id !== notificationId));

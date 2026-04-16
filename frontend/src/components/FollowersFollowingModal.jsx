@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import UnfollowModal from "./UnfollowModal";
 
 const FollowersFollowingModal = ({ userId, isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState("followers");
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [unfollowUser, setUnfollowUser] = useState(null);
   const navigate = useNavigate();
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
 
   useEffect(() => {
@@ -21,10 +23,10 @@ const FollowersFollowingModal = ({ userId, isOpen, onClose }) => {
     try {
       setLoading(true);
       const [followersRes, followingRes] = await Promise.all([
-        axios.get(`${API}/api/users/${userId}/followers`, {
+        axios.get(`${API}/users/${userId}/followers`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        axios.get(`${API}/api/users/${userId}/following`, {
+        axios.get(`${API}/users/${userId}/following`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -98,13 +100,15 @@ const FollowersFollowingModal = ({ userId, isOpen, onClose }) => {
               {data.map((user) => (
                 <div
                   key={user._id}
-                  className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                  onClick={() => {
-                    navigate(`/profile/${user._id}`);
-                    onClose();
-                  }}
+                  className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors group"
                 >
-                  <div className="flex items-center gap-3 flex-1">
+                  <div 
+                    className="flex items-center gap-3 flex-1 cursor-pointer"
+                    onClick={() => {
+                      navigate(`/profile/${user._id}`);
+                      onClose();
+                    }}
+                  >
                     <img
                       src={user.profileImage}
                       alt={user.name}
@@ -119,13 +123,42 @@ const FollowersFollowingModal = ({ userId, isOpen, onClose }) => {
                       </p>
                     </div>
                   </div>
-                  <div className="text-blue-600 text-lg">→</div>
+                  
+                  {/* Unfollow button for Following tab */}
+                  {activeTab === "following" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUnfollowUser(user);
+                      }}
+                      className="text-red-500 text-sm font-medium px-2 py-1 rounded hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
+                    >
+                      Unfollow
+                    </button>
+                  )}
+                  
+                  {activeTab === "followers" && (
+                    <div className="text-blue-600 text-lg">→</div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Unfollow Modal */}
+      {unfollowUser && (
+        <UnfollowModal
+          user={unfollowUser}
+          onUnfollow={(userId) => {
+            setFollowing(following.filter((u) => u._id !== userId));
+            setUnfollowUser(null);
+            fetchFollowersAndFollowing();
+          }}
+          onCancel={() => setUnfollowUser(null)}
+        />
+      )}
     </div>
   );
 };

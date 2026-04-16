@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import ProfileCard from "../components/ProfileCard";
+import { searchAPI } from "../api/apiClient";
 
 function Profile() {
   const [user, setUser] = useState(null);
@@ -12,7 +13,7 @@ function Profile() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const authHeader = token ? `Bearer ${token}` : "";
@@ -20,7 +21,7 @@ function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const endpoint = isOwner ? `${API}/api/profile` : `${API}/api/users/${id}`;
+      const endpoint = isOwner ? `${API}/profile` : `${API}/users/${id}`;
       const res = await axios.get(endpoint, {
         headers: { Authorization: authHeader },
       });
@@ -33,7 +34,7 @@ function Profile() {
 
   const fetchPosts = async () => {
     try {
-      const endpoint = isOwner ? `${API}/api/posts/me` : `${API}/api/users/${id}/posts`;
+      const endpoint = isOwner ? `${API}/posts/me` : `${API}/users/${id}/posts`;
       const res = await axios.get(endpoint, {
         headers: { Authorization: authHeader },
       });
@@ -52,6 +53,17 @@ function Profile() {
     const load = async () => {
       setLoading(true);
       await Promise.all([fetchProfile(), fetchPosts()]);
+      
+      // 👁️ TRACK PROFILE VIEW - only if viewing someone else's profile
+      if (id && id !== currentUser._id) {
+        try {
+          await searchAPI.trackProfileView(id);
+          console.log("Profile view tracked ✅");
+        } catch (err) {
+          console.error("Failed to track view:", err);
+        }
+      }
+      
       setLoading(false);
     };
 

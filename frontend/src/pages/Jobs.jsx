@@ -4,12 +4,12 @@ import axios from "axios";
 function Jobs() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
 
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const res = await axios.get(`${API}/api/news?q=job%20market`);
+        const res = await axios.get(`${API}/news?q=job%20market`);
         setArticles(res.data.articles || []);
       } catch (err) {
         console.error("Jobs news error:", err);

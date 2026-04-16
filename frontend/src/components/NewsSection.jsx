@@ -11,14 +11,14 @@ function NewsSection() {
   const [articles, setArticles] = useState([]);
   const [activeCategory, setActiveCategory] = useState("technology");
   const [loading, setLoading] = useState(true);
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
 
   useEffect(() => {
     const fetchNews = async () => {
       setLoading(true);
       try {
         const res = await axios.get(
-          `${API}/api/news?q=${encodeURIComponent(activeCategory)}`
+          `${API}/news?q=${encodeURIComponent(activeCategory)}`
         );
         setArticles(res.data.articles || []);
       } catch (err) {

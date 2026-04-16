@@ -81,4 +81,26 @@ export const notificationAPI = {
   deleteNotification: (notificationId) => apiClient.delete(`/notifications/${notificationId}`),
 };
 
+// ============ SEARCH API ============
+
+export const searchAPI = {
+  // Search users by name or email
+  searchUsers: (query) => apiClient.get(`/search/users?query=${query}`),
+
+  // Add comment to post
+  addComment: (postId, text) => apiClient.post(`/search/posts/${postId}/comments`, { text }),
+
+  // Get comments for a post
+  getComments: (postId) => apiClient.get(`/search/posts/${postId}/comments`),
+
+  // Delete comment
+  deleteComment: (postId, commentId) => apiClient.delete(`/search/posts/${postId}/comments/${commentId}`),
+
+  // Add reply to comment
+  addReply: (postId, commentId, text) => apiClient.post(`/search/posts/${postId}/comments/${commentId}/replies`, { text }),
+
+  // Track profile view
+  trackProfileView: (userId) => apiClient.post(`/search/users/${userId}/track-view`),
+};
+
 export default apiClient;

@@ -1,6 +1,8 @@
-﻿import { useState, useRef } from "react";
+﻿import { useState, useRef, useEffect } from "react";
+import io from "socket.io-client";
 import EditProfileModal from "./EditProfileModal";
 import FollowersFollowingModal from "./FollowersFollowingModal";
+import FollowButton from "./FollowButton";
 import axios from "axios";
 
 function ProfileCard({ user, refreshProfile, isOwner }) {
@@ -9,11 +11,56 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [newSkill, setNewSkill] = useState("");
   const [loadingSkill, setLoadingSkill] = useState(false);
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const [isFollowing, setIsFollowing] = useState(false);
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
   const authHeader = token ? `Bearer ${token}` : "";
   const bannerInputRef = useRef(null);
   const avatarInputRef = useRef(null);
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+  // 🔹 CHECK IF FOLLOWING
+  useEffect(() => {
+    if (!isOwner && user) {
+      const following = user.followers?.some(
+        (id) => String(id) === String(currentUser._id)
+      );
+      setIsFollowing(!!following);
+    }
+  }, [user, isOwner, currentUser._id]);
+
+  // 🔹 SOCKET.IO FOLLOW/UNFOLLOW EVENTS
+  useEffect(() => {
+    const socket = io("http://localhost:5000", {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+    });
+
+    // Notify server user is online
+    socket.emit("user_online", currentUser._id);
+
+    // Listen for follow requests
+    socket.on("receive_follow_request", (data) => {
+      // Update UI if current user is the target
+      if (String(data.to) === String(user._id)) {
+        refreshProfile?.();
+      }
+    });
+
+    // Listen for unfollow
+    socket.on("receive_unfollow", (data) => {
+      // Update UI if current user is affected
+      if (String(data.to) === String(user._id) || String(data.from) === String(currentUser._id)) {
+        refreshProfile?.();
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [currentUser._id, user._id, refreshProfile]);
 
   const handleSaveProfile = async (data) => {
     try {
@@ -29,7 +76,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
         formData.append("bannerImage", data.bannerFile);
       }
 
-      await axios.put(`${API}/api/profile`, formData, {
+      await axios.put(`${API}/profile`, formData, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -44,7 +91,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
     try {
       const formData = new FormData();
       formData.append(fieldName, file);
-      await axios.put(`${API}/api/profile`, formData, {
+      await axios.put(`${API}/profile`, formData, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -65,7 +112,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
 
   const handleDeleteAvatar = async () => {
     try {
-      await axios.delete(`${API}/api/profile/avatar`, {
+      await axios.delete(`${API}/profile/avatar`, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -76,7 +123,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
 
   const handleDeleteBanner = async () => {
     try {
-      await axios.delete(`${API}/api/profile/banner`, {
+      await axios.delete(`${API}/profile/banner`, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -94,7 +141,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
 
     try {
       setLoadingSkill(true);
-      await axios.post(`${API}/api/users/skills/add`, { skill: newSkill }, {
+      await axios.post(`${API}/users/skills/add`, { skill: newSkill }, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -108,7 +155,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
 
   const handleRemoveSkill = async (skill) => {
     try {
-      await axios.post(`${API}/api/users/skills/remove`, { skill }, {
+      await axios.post(`${API}/users/skills/remove`, { skill }, {
         headers: { Authorization: authHeader },
       });
       refreshProfile();
@@ -200,6 +247,18 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
         >
           Edit Profile
         </button>
+
+        {/* Follow/Unfollow Button (for non-owners) */}
+        {!isOwner && (
+          <FollowButton
+            user={user}
+            isFollowing={isFollowing}
+            onFollowChange={(following) => {
+              setIsFollowing(following);
+              refreshProfile();
+            }}
+          />
+        )}
       </div>
 
       <div className="px-6 py-4">

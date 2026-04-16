@@ -15,7 +15,7 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const fileInputRef = useRef(null);
 
   // ✅ FINAL API FIX
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
 
   // ✅ Load user
   useEffect(() => {
@@ -88,7 +88,7 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
       const token = localStorage.getItem("token");
       const authHeader = token ? `Bearer ${token}` : "";
 
-      const res = await axios.post(`${API}/api/posts`, formData, {
+      const res = await axios.post(`${API}/posts`, formData, {
         headers: {
           Authorization: authHeader,
         },
