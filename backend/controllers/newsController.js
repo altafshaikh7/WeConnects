@@ -1,5 +1,6 @@
 const https = require("https");
 
+// 🔹 Helper
 const fetchJson = (url) =>
   new Promise((resolve, reject) => {
     https
@@ -21,26 +22,50 @@ const fetchJson = (url) =>
       .on("error", reject);
   });
 
+// 🔹 Main Controller
 exports.getNews = async (req, res) => {
   try {
-    const query = req.query.q || "technology startup job market";
+    const q = req.query.q || "technology";
     const apiKey = process.env.GNEWS_API_KEY;
 
     if (!apiKey) {
       return res.status(500).json({
-        error:
-          "News API key missing. Set GNEWS_API_KEY in backend .env to fetch news.",
+        error: "❌ GNEWS_API_KEY missing",
       });
     }
 
-    const encoded = encodeURIComponent(query);
-    const url = `https://gnews.io/api/v4/search?q=${encoded}&lang=en&max=6&token=${apiKey}`;
+    let url = "";
+
+    // ✅ DIFFERENT API LOGIC
+    if (q === "technology") {
+      // 🔥 Tech → headlines
+      url = `https://gnews.io/api/v4/top-headlines?category=technology&lang=en&max=6&token=${apiKey}`;
+    } else if (q === "startup") {
+      // 🚀 Startup → search
+      url = `https://gnews.io/api/v4/search?q=startup&lang=en&max=6&token=${apiKey}`;
+    } else if (q === "job market") {
+      // 💼 Jobs → search
+      url = `https://gnews.io/api/v4/search?q=jobs hiring career&lang=en&max=6&token=${apiKey}`;
+    } else {
+      // fallback
+      url = `https://gnews.io/api/v4/top-headlines?category=technology&lang=en&max=6&token=${apiKey}`;
+    }
+
+    console.log("🌐 Fetching:", url);
+
     const data = await fetchJson(url);
 
-    const articles = (data.articles || []).map((article) => ({
+    if (!data.articles) {
+      return res.status(500).json({
+        error: "GNews API failed ❌",
+        details: data,
+      });
+    }
+
+    const articles = data.articles.map((article) => ({
       title: article.title,
       description: article.description,
-      source: article.source.name,
+      source: article.source?.name || "Unknown",
       url: article.url,
       image: article.image,
       publishedAt: article.publishedAt,
@@ -48,7 +73,9 @@ exports.getNews = async (req, res) => {
 
     res.json({ articles });
   } catch (err) {
-    console.error("NEWS FETCH ERROR:", err);
-    res.status(500).json({ error: "Could not fetch news ❌" });
+    console.error("❌ NEWS ERROR:", err.message);
+    res.status(500).json({
+      error: "Failed to fetch news ❌",
+    });
   }
 };
