@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Post = require("../models/Post");
 const FollowRequest = require("../models/FollowRequest");
+const Notification = require("../models/Notification");
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -83,7 +84,32 @@ exports.followUser = async (req, res) => {
       to: targetUser._id,
     });
 
-    res.json({ msg: "Follow request sent", followRequest });
+    // Create notification for receiver
+    const notification = await Notification.create({
+      recipient: targetUser._id,
+      sender: currentUser._id,
+      type: "connection_request",
+      message: `${currentUser.name} sent you a connection request`,
+      relatedRequest: followRequest._id,
+    });
+
+    // Emit notification through Socket.io
+    const io = req.app.get("io");
+    io.to(String(targetUser._id)).emit("receive_notification", {
+      _id: notification._id,
+      sender: {
+        _id: currentUser._id,
+        name: currentUser.name,
+        profileImage: currentUser.profileImage,
+      },
+      type: "connection_request",
+      message: `${currentUser.name} sent you a connection request`,
+      relatedRequest: followRequest._id,
+      createdAt: notification.createdAt,
+      read: false,
+    });
+
+    res.json({ msg: "Follow request sent ✅", followRequest });
   } catch (err) {
     console.error("FOLLOW ERROR:", err);
     res.status(500).json({ error: "Follow failed ❌" });
@@ -161,7 +187,31 @@ exports.acceptRequest = async (req, res) => {
     await fromUser.save();
     await request.save();
 
-    res.json({ msg: "Request accepted" });
+    // Create notification for sender
+    const notification = await Notification.create({
+      recipient: request.from,
+      sender: request.to,
+      type: "request_accepted",
+      message: `${toUser.name} accepted your connection request`,
+      relatedRequest: request._id,
+    });
+
+    // Emit notification through Socket.io
+    const io = req.app.get("io");
+    io.to(String(request.from)).emit("receive_notification", {
+      _id: notification._id,
+      sender: {
+        _id: toUser._id,
+        name: toUser.name,
+        profileImage: toUser.profileImage,
+      },
+      type: "request_accepted",
+      message: `${toUser.name} accepted your connection request`,
+      createdAt: notification.createdAt,
+      read: false,
+    });
+
+    res.json({ msg: "Request accepted ✅", notification });
   } catch (err) {
     console.error("ACCEPT REQUEST ERROR:", err);
     res.status(500).json({ error: "Accept failed ❌" });
@@ -180,12 +230,193 @@ exports.rejectRequest = async (req, res) => {
       return res.status(400).json({ msg: "Request already processed ❌" });
     }
 
+    const toUser = await User.findById(request.to);
     request.status = "rejected";
     await request.save();
 
-    res.json({ msg: "Request rejected" });
+    // Create notification for sender
+    const notification = await Notification.create({
+      recipient: request.from,
+      sender: request.to,
+      type: "request_rejected",
+      message: `${toUser.name} rejected your connection request`,
+      relatedRequest: request._id,
+    });
+
+    // Emit notification through Socket.io
+    const io = req.app.get("io");
+    io.to(String(request.from)).emit("receive_notification", {
+      _id: notification._id,
+      sender: {
+        _id: toUser._id,
+        name: toUser.name,
+        profileImage: toUser.profileImage,
+      },
+      type: "request_rejected",
+      message: `${toUser.name} rejected your connection request`,
+      createdAt: notification.createdAt,
+      read: false,
+    });
+
+    res.json({ msg: "Request rejected ✅", notification });
   } catch (err) {
     console.error("REJECT REQUEST ERROR:", err);
     res.status(500).json({ error: "Reject failed ❌" });
+  }
+};
+
+// 🔹 GET FOLLOWERS
+exports.getFollowers = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).populate(
+      "followers",
+      "name profileImage headline _id"
+    );
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found ❌" });
+    }
+
+    res.json(user.followers);
+  } catch (err) {
+    console.error("GET FOLLOWERS ERROR:", err);
+    res.status(500).json({ error: "Could not fetch followers ❌" });
+  }
+};
+
+// 🔹 GET FOLLOWING
+exports.getFollowing = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).populate(
+      "following",
+      "name profileImage headline _id"
+    );
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found ❌" });
+    }
+
+    res.json(user.following);
+  } catch (err) {
+    console.error("GET FOLLOWING ERROR:", err);
+    res.status(500).json({ error: "Could not fetch following ❌" });
+  }
+};
+
+// 🔹 ADD SKILL
+exports.addSkill = async (req, res) => {
+  try {
+    const { skill } = req.body;
+
+    if (!skill || skill.trim() === "") {
+      return res.status(400).json({ msg: "Skill is required ❌" });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found ❌" });
+    }
+
+    if (user.skills.includes(skill.trim())) {
+      return res.status(400).json({ msg: "Skill already exists ❌" });
+    }
+
+    user.skills.push(skill.trim());
+    await user.save();
+
+    res.json({ msg: "Skill added successfully ✅", skills: user.skills });
+  } catch (err) {
+    console.error("ADD SKILL ERROR:", err);
+    res.status(500).json({ error: "Could not add skill ❌" });
+  }
+};
+
+// 🔹 REMOVE SKILL
+exports.removeSkill = async (req, res) => {
+  try {
+    const { skill } = req.body;
+
+    if (!skill) {
+      return res.status(400).json({ msg: "Skill is required ❌" });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found ❌" });
+    }
+
+    user.skills = user.skills.filter((s) => s !== skill);
+    await user.save();
+
+    res.json({ msg: "Skill removed successfully ✅", skills: user.skills });
+  } catch (err) {
+    console.error("REMOVE SKILL ERROR:", err);
+    res.status(500).json({ error: "Could not remove skill ❌" });
+  }
+};
+
+// 🔹 GET SUGGESTED USERS (for networking)
+exports.getSuggestedUsers = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user._id);
+
+    // Get users that the current user is not already following
+    const suggestedUsers = await User.find({
+      _id: {
+        $ne: req.user._id,
+        $nin: currentUser.following,
+      },
+    })
+      .select("name headline profileImage _id followers")
+      .limit(10);
+
+    res.json(suggestedUsers);
+  } catch (err) {
+    console.error("GET SUGGESTED USERS ERROR:", err);
+    res.status(500).json({ error: "Could not fetch suggested users ❌" });
+  }
+};
+
+// 🔹 GET CONNECTION STATUS (check if already following, pending, etc.)
+exports.getConnectionStatus = async (req, res) => {
+  try {
+    const targetUserId = req.params.id;
+    const currentUserId = req.user._id;
+
+    const currentUser = await User.findById(currentUserId);
+    const targetUser = await User.findById(targetUserId);
+
+    if (!targetUser) {
+      return res.status(404).json({ msg: "User not found ❌" });
+    }
+
+    // Check if already following
+    const isFollowing = targetUser.followers.some(
+      (id) => String(id) === String(currentUserId)
+    );
+
+    // Check for pending request
+    const pendingRequest = await FollowRequest.findOne({
+      from: currentUserId,
+      to: targetUserId,
+      status: "pending",
+    });
+
+    // Check if target user is following current user
+    const isFollowedBy = currentUser.followers.some(
+      (id) => String(id) === String(targetUserId)
+    );
+
+    res.json({
+      isFollowing,
+      isPending: !!pendingRequest,
+      isFollowedBy,
+      requestId: pendingRequest?._id,
+    });
+  } catch (err) {
+    console.error("GET CONNECTION STATUS ERROR:", err);
+    res.status(500).json({ error: "Could not fetch connection status ❌" });
   }
 };
