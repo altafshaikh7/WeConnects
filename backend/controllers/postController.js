@@ -94,6 +94,24 @@ exports.toggleLike = async (req, res) => {
       .populate("user", "name profileImage")
       .populate("comments.user", "name");
 
+    // 🔹 EMIT SOCKET.IO EVENT
+    const io = req.app.get("io");
+    if (io) {
+      if (alreadyLiked) {
+        io.emit("receive_unlike", {
+          postId: post._id,
+          userId: userId,
+          likeCount: post.likes.length,
+        });
+      } else {
+        io.emit("receive_like", {
+          postId: post._id,
+          userId: userId,
+          likeCount: post.likes.length,
+        });
+      }
+    }
+
     res.json(post);
 
   } catch (err) {

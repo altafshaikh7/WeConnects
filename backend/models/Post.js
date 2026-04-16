@@ -26,9 +26,10 @@ const postSchema = new mongoose.Schema({
     },
   ],
 
-  // ✅ COMMENTS
+  // ✅ COMMENTS WITH NESTED REPLIES
   comments: [
     {
+      _id: mongoose.Schema.Types.ObjectId,
       user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -38,6 +39,20 @@ const postSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
       },
+      // 🔹 NESTED REPLIES
+      replies: [
+        {
+          user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+          text: String,
+          createdAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
     },
   ],
 

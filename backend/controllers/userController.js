@@ -109,6 +109,15 @@ exports.followUser = async (req, res) => {
       read: false,
     });
 
+    // 🔹 EMIT NEW FOLLOW EVENT
+    io.emit("receive_follow_request", {
+      from: currentUser._id,
+      to: targetUser._id,
+      fromName: currentUser.name,
+      fromProfileImage: currentUser.profileImage,
+      timestamp: new Date(),
+    });
+
     res.json({ msg: "Follow request sent ✅", followRequest });
   } catch (err) {
     console.error("FOLLOW ERROR:", err);
@@ -138,6 +147,15 @@ exports.unfollowUser = async (req, res) => {
 
     await targetUser.save();
     await currentUser.save();
+
+    // 🔹 EMIT UNFOLLOW EVENT
+    const io = req.app.get("io");
+    io.emit("receive_unfollow", {
+      from: currentUser._id,
+      to: targetUser._id,
+      fromName: currentUser.name,
+      timestamp: new Date(),
+    });
 
     res.json({
       targetUser,

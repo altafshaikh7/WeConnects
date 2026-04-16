@@ -87,6 +87,26 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // 🔹 TRACK WHO VIEWED PROFILE
+    profileViewers: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        viewedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    // 🔹 POST IMPRESSIONS
+    postImpressions: {
+      type: Number,
+      default: 0,
+    },
+
     experience: [experienceSchema],
     education: [educationSchema],
 

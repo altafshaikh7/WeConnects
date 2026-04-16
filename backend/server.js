@@ -69,6 +69,38 @@ io.on("connection", (socket) => {
     io.to(recipientId).emit("receive_notification", notification);
   });
 
+  // 🔹 NEW: Profile view event
+  socket.on("profile_viewed", (data) => {
+    const { userId, viewerName, viewerImage } = data;
+    io.to(userId).emit("profile_view_update", {
+      viewerName,
+      viewerImage,
+      timestamp: new Date(),
+    });
+  });
+
+  // 🔹 NEW: New comment on post
+  socket.on("new_comment", (data) => {
+    const { postId, comment, authorId } = data;
+    io.emit("receive_comment", {
+      postId,
+      comment,
+      authorId,
+      timestamp: new Date(),
+    });
+  });
+
+  // 🔹 NEW: New reply to comment
+  socket.on("new_reply", (data) => {
+    const { postId, commentId, reply } = data;
+    io.emit("receive_reply", {
+      postId,
+      commentId,
+      reply,
+      timestamp: new Date(),
+    });
+  });
+
   socket.on("disconnect", () => {
     // Find and remove user from active users
     for (const [userId, socketId] of activeUsers) {
@@ -134,6 +166,9 @@ app.use("/api/news", require("./routes/newsRoutes"));
 
 // 🔔 Notification routes
 app.use("/api/notifications", require("./routes/notificationRoutes"));
+
+// 🔍 Search & Comment routes
+app.use("/api/search", require("./routes/searchRoutes"));
 
 // ================= TEST ROUTE =================
 app.get("/", (req, res) => {
