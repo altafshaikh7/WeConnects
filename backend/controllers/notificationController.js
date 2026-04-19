@@ -2,15 +2,17 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const FollowRequest = require("../models/FollowRequest");
 
-// 🔹 GET ALL NOTIFICATIONS FOR CURRENT USER
+// 🔹 GET ALL NOTIFICATIONS FOR CURRENT USER (SORTED BY NEWEST)
 exports.getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
       recipient: req.user._id,
     })
-      .populate("sender", "name profileImage")
+      .populate("sender", "name profileImage _id")
       .populate("relatedRequest")
-      .sort({ createdAt: -1 });
+      .populate("relatedPost", "content _id")
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json(notifications);
   } catch (err) {
@@ -43,10 +45,14 @@ exports.markAsRead = async (req, res) => {
       return res.status(404).json({ msg: "Notification not found ❌" });
     }
 
+    if (notification.read) {
+      return res.json({ msg: "Already marked as read", notification });
+    }
+
     notification.read = true;
     await notification.save();
 
-    res.json({ msg: "Marked as read", notification });
+    res.json({ msg: "Marked as read ✅", notification });
   } catch (err) {
     console.error("MARK AS READ ERROR:", err);
     res.status(500).json({ error: "Could not mark notification ❌" });
@@ -56,7 +62,7 @@ exports.markAsRead = async (req, res) => {
 // 🔹 MARK ALL AS READ
 exports.markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany(
+    const result = await Notification.updateMany(
       {
         recipient: req.user._id,
         read: false,
@@ -64,7 +70,10 @@ exports.markAllAsRead = async (req, res) => {
       { read: true }
     );
 
-    res.json({ msg: "All notifications marked as read ✅" });
+    res.json({
+      msg: "All notifications marked as read ✅",
+      modifiedCount: result.modifiedCount,
+    });
   } catch (err) {
     console.error("MARK ALL AS READ ERROR:", err);
     res.status(500).json({ error: "Could not mark all notifications ❌" });
@@ -90,24 +99,45 @@ exports.deleteNotification = async (req, res) => {
 };
 
 // 🔹 CREATE NOTIFICATION (Internal helper - called by other controllers)
+// Returns full notification object ready to be emitted via Socket.io
 exports.createNotification = async (
   recipientId,
   senderId,
   type,
   message = "",
-  relatedRequestId = null
+  relatedRequestId = null,
+  relatedPostId = null
 ) => {
   try {
+    // Validate inputs
+    if (!recipientId || !senderId || !type) {
+      console.error("Invalid notification parameters:", {
+        recipientId,
+        senderId,
+        type,
+      });
+      return null;
+    }
+
     const notification = await Notification.create({
       recipient: recipientId,
       sender: senderId,
       type,
       message,
       relatedRequest: relatedRequestId,
+      relatedPost: relatedPostId,
     });
 
-    return notification;
+    // Populate sender details for real-time emission
+    const populatedNotification = await Notification.findById(notification._id)
+      .populate("sender", "name profileImage _id")
+      .populate("relatedRequest")
+      .populate("relatedPost", "content _id");
+
+    return populatedNotification;
   } catch (err) {
     console.error("CREATE NOTIFICATION ERROR:", err);
+    return null;
   }
 };
+

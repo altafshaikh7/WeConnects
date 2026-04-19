@@ -85,31 +85,32 @@ exports.followUser = async (req, res) => {
     });
 
     // Create notification for receiver
-    const notification = await Notification.create({
-      recipient: targetUser._id,
-      sender: currentUser._id,
-      type: "connection_request",
-      message: `${currentUser.name} sent you a connection request`,
-      relatedRequest: followRequest._id,
-    });
+    const notificationController = require("./notificationController");
+    const notification = await notificationController.createNotification(
+      targetUser._id,
+      currentUser._id,
+      "connection_request",
+      `${currentUser.name} sent you a connection request`,
+      followRequest._id
+    );
 
-    // Emit notification through Socket.io
-    const io = req.app.get("io");
-    io.to(String(targetUser._id)).emit("receive_notification", {
-      _id: notification._id,
-      sender: {
-        _id: currentUser._id,
-        name: currentUser.name,
-        profileImage: currentUser.profileImage,
-      },
-      type: "connection_request",
-      message: `${currentUser.name} sent you a connection request`,
-      relatedRequest: followRequest._id,
-      createdAt: notification.createdAt,
-      read: false,
-    });
+    // Emit notification through Socket.io (ONLY if notification was created successfully)
+    if (notification) {
+      const io = req.app.get("io");
+      io.to(String(targetUser._id)).emit("receive_notification", {
+        _id: notification._id,
+        sender: notification.sender,
+        type: notification.type,
+        message: notification.message,
+        relatedRequest: notification.relatedRequest,
+        createdAt: notification.createdAt,
+        read: notification.read,
+      });
+      console.log(`📬 Notification sent to ${targetUser._id}`);
+    }
 
     // 🔹 EMIT NEW FOLLOW EVENT
+    const io = req.app.get("io");
     io.emit("receive_follow_request", {
       from: currentUser._id,
       to: targetUser._id,
@@ -196,8 +197,13 @@ exports.acceptRequest = async (req, res) => {
     const fromUser = await User.findById(request.from);
     const toUser = await User.findById(request.to);
 
-    toUser.followers.push(request.from);
-    fromUser.following.push(request.to);
+    // Prevent duplicate entries
+    if (!toUser.followers.includes(request.from)) {
+      toUser.followers.push(request.from);
+    }
+    if (!fromUser.following.includes(request.to)) {
+      fromUser.following.push(request.to);
+    }
 
     request.status = "accepted";
 
@@ -206,30 +212,34 @@ exports.acceptRequest = async (req, res) => {
     await request.save();
 
     // Create notification for sender
-    const notification = await Notification.create({
-      recipient: request.from,
-      sender: request.to,
-      type: "request_accepted",
-      message: `${toUser.name} accepted your connection request`,
-      relatedRequest: request._id,
-    });
+    const notificationController = require("./notificationController");
+    const notification = await notificationController.createNotification(
+      request.from,
+      request.to,
+      "request_accepted",
+      `${toUser.name} accepted your connection request`,
+      request._id
+    );
 
-    // Emit notification through Socket.io
-    const io = req.app.get("io");
-    io.to(String(request.from)).emit("receive_notification", {
-      _id: notification._id,
-      sender: {
-        _id: toUser._id,
-        name: toUser.name,
-        profileImage: toUser.profileImage,
-      },
-      type: "request_accepted",
-      message: `${toUser.name} accepted your connection request`,
-      createdAt: notification.createdAt,
-      read: false,
-    });
+    // Emit notification through Socket.io (ONLY if notification was created successfully)
+    if (notification) {
+      const io = req.app.get("io");
+      io.to(String(request.from)).emit("receive_notification", {
+        _id: notification._id,
+        sender: notification.sender,
+        type: notification.type,
+        message: notification.message,
+        relatedRequest: notification.relatedRequest,
+        createdAt: notification.createdAt,
+        read: notification.read,
+      });
+      console.log(`📬 Acceptance notification sent to ${request.from}`);
+    }
 
-    res.json({ msg: "Request accepted ✅", notification });
+    res.json({
+      msg: "Request accepted ✅",
+      notification: notification || null,
+    });
   } catch (err) {
     console.error("ACCEPT REQUEST ERROR:", err);
     res.status(500).json({ error: "Accept failed ❌" });
@@ -253,30 +263,34 @@ exports.rejectRequest = async (req, res) => {
     await request.save();
 
     // Create notification for sender
-    const notification = await Notification.create({
-      recipient: request.from,
-      sender: request.to,
-      type: "request_rejected",
-      message: `${toUser.name} rejected your connection request`,
-      relatedRequest: request._id,
-    });
+    const notificationController = require("./notificationController");
+    const notification = await notificationController.createNotification(
+      request.from,
+      request.to,
+      "request_rejected",
+      `${toUser.name} rejected your connection request`,
+      request._id
+    );
 
-    // Emit notification through Socket.io
-    const io = req.app.get("io");
-    io.to(String(request.from)).emit("receive_notification", {
-      _id: notification._id,
-      sender: {
-        _id: toUser._id,
-        name: toUser.name,
-        profileImage: toUser.profileImage,
-      },
-      type: "request_rejected",
-      message: `${toUser.name} rejected your connection request`,
-      createdAt: notification.createdAt,
-      read: false,
-    });
+    // Emit notification through Socket.io (ONLY if notification was created successfully)
+    if (notification) {
+      const io = req.app.get("io");
+      io.to(String(request.from)).emit("receive_notification", {
+        _id: notification._id,
+        sender: notification.sender,
+        type: notification.type,
+        message: notification.message,
+        relatedRequest: notification.relatedRequest,
+        createdAt: notification.createdAt,
+        read: notification.read,
+      });
+      console.log(`📬 Rejection notification sent to ${request.from}`);
+    }
 
-    res.json({ msg: "Request rejected ✅", notification });
+    res.json({
+      msg: "Request rejected ✅",
+      notification: notification || null,
+    });
   } catch (err) {
     console.error("REJECT REQUEST ERROR:", err);
     res.status(500).json({ error: "Reject failed ❌" });

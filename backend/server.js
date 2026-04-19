@@ -17,22 +17,53 @@ const server = http.createServer(app);
 // ================= SOCKET.IO SETUP =================
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173", process.env.VITE_FRONTEND_URL],
     credentials: true,
   },
+  transports: ["websocket", "polling"], // Ensure websocket is used
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
 });
 
-// Store active users
+// Store active users (userId -> socketId mapping)
 const activeUsers = new Map();
 
 io.on("connection", (socket) => {
-  console.log(`✅ User connected: ${socket.id}`);
+  console.log(`✅ Socket connected: ${socket.id}`);
 
-  // User joins their own room
+  // User joins their own room (CRITICAL FOR NOTIFICATIONS)
   socket.on("user_online", (userId) => {
+    if (!userId) {
+      console.error("❌ user_online called without userId");
+      return;
+    }
+
+    // Store user-socket mapping
     activeUsers.set(userId, socket.id);
+    // Join room with userId so we can emit to this user later
     socket.join(userId);
-    console.log(`👤 User ${userId} is online`);
+    
+    console.log(`👤 User ${userId} is online (socket: ${socket.id})`);
+    console.log(`📊 Active users: ${activeUsers.size}`);
+  });
+
+  // Handle disconnection properly
+  socket.on("disconnect", () => {
+    // Find and remove user from active users
+    for (const [userId, socketId] of activeUsers) {
+      if (socketId === socket.id) {
+        activeUsers.delete(userId);
+        console.log(`❌ User ${userId} is offline`);
+        console.log(`📊 Active users: ${activeUsers.size}`);
+        break;
+      }
+    }
+  });
+
+  // Connection error handling
+  socket.on("connect_error", (error) => {
+    console.error("Socket connection error:", error.message);
   });
 
   // Listen for connection requests
@@ -63,13 +94,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  // New notification event
+  // New notification event (backup - API endpoints already emit notifications)
   socket.on("send_notification", (data) => {
     const { recipientId, notification } = data;
     io.to(recipientId).emit("receive_notification", notification);
   });
 
-  // 🔹 NEW: Profile view event
+  // Profile view event
   socket.on("profile_viewed", (data) => {
     const { userId, viewerName, viewerImage } = data;
     io.to(userId).emit("profile_view_update", {
@@ -79,7 +110,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔹 NEW: New comment on post
+  // New comment on post
   socket.on("new_comment", (data) => {
     const { postId, comment, authorId } = data;
     io.emit("receive_comment", {
@@ -90,7 +121,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔹 NEW: New reply to comment
+  // New reply to comment
   socket.on("new_reply", (data) => {
     const { postId, commentId, reply } = data;
     io.emit("receive_reply", {
@@ -101,15 +132,33 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("disconnect", () => {
-    // Find and remove user from active users
-    for (const [userId, socketId] of activeUsers) {
-      if (socketId === socket.id) {
-        activeUsers.delete(userId);
-        console.log(`❌ User ${userId} is offline`);
-        break;
-      }
-    }
+  // 💬 MESSAGING EVENTS
+  // Send message (real-time)
+  socket.on("send_message", (data) => {
+    const { to, message } = data;
+    io.to(to).emit("receive_message", {
+      from: socket.id,
+      message,
+      timestamp: new Date(),
+    });
+  });
+
+  // User typing indicator
+  socket.on("typing", (data) => {
+    const { to, isTyping } = data;
+    io.to(to).emit("user_typing", {
+      isTyping,
+      timestamp: new Date(),
+    });
+  });
+
+  // Mark message as read
+  socket.on("message_read", (data) => {
+    const { to, messageId } = data;
+    io.to(to).emit("message_read_receipt", {
+      messageId,
+      timestamp: new Date(),
+    });
   });
 });
 
@@ -169,6 +218,9 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 // 🔍 Search & Comment routes
 app.use("/api/search", require("./routes/searchRoutes"));
+
+// 💬 Message routes
+app.use("/api/messages", require("./routes/messageRoutes"));
 
 // ================= TEST ROUTE =================
 app.get("/", (req, res) => {
