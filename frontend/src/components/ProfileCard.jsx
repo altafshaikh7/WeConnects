@@ -240,13 +240,15 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className="text-sm border px-4 py-1 rounded-full hover:bg-gray-100 transition"
-        >
-          Edit Profile
-        </button>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setIsOpen(true)}
+            className="text-sm border px-4 py-1 rounded-full hover:bg-gray-100 transition font-medium text-[#0A66C2]"
+          >
+            ✎ Edit Profile
+          </button>
+        )}
 
         {/* Follow/Unfollow Button (for non-owners) */}
         {!isOwner && (

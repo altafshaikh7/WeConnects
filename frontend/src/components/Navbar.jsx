@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, Home, Users, Search, Bell, LogOut, MessageCircle } from "lucide-react";
 import Logo from "./logo";
 import axios from "axios";
+import io from "socket.io-client";
 
 function Navbar() {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -13,7 +14,11 @@ function Navbar() {
   const [searchResults, setSearchResults] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const searchRef = useRef(null);
+
+  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
+  const token = localStorage.getItem("token");
 
   const navItems = [
     { label: "Home", icon: Home, path: "/home" },
@@ -22,6 +27,45 @@ function Navbar() {
   ];
 
   const isActive = (path) => location.pathname === path;
+
+  // 🔔 FETCH UNREAD NOTIFICATION COUNT
+  const fetchUnreadCount = async () => {
+    if (!token || !user._id) return;
+    try {
+      const res = await axios.get(`${API}/notifications/unread/count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUnreadCount(res.data.unreadCount || 0);
+    } catch (err) {
+      console.error("Error fetching unread count:", err);
+    }
+  };
+
+  // 🔔 REAL-TIME NOTIFICATION UPDATES
+  useEffect(() => {
+    if (!user._id) return;
+
+    // Fetch initial unread count
+    fetchUnreadCount();
+
+    // Setup Socket.io listener for real-time notifications
+    const socket = io("http://localhost:5000", {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.emit("user_online", user._id);
+
+    socket.on("receive_notification", (notification) => {
+      setUnreadCount((prev) => prev + 1);
+      console.log("📬 New notification received:", notification);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user._id, token, API]);
 
   // 🔍 SEARCH USERS LIVE
   useEffect(() => {
@@ -174,10 +218,20 @@ function Navbar() {
             })}
 
             <div 
-              onClick={() => navigate("/notifications")}
+              onClick={() => {
+                navigate("/notifications");
+                setUnreadCount(0); // Reset badge when clicking
+              }}
               className="flex flex-col items-center cursor-pointer hover:text-black transition relative"
             >
-              <Bell size={18} />
+              <div className="relative">
+                <Bell size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] mt-1">Notifications</span>
             </div>
           </div>

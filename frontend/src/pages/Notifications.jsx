@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import {
   initSocket,
   onReceiveNotification,
   getSocket,
   disconnectSocket,
 } from "../utils/socketClient";
+import { X, Check, Trash2 } from "lucide-react";
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -20,6 +22,7 @@ const Notifications = () => {
 
   // Fetch notifications from API
   const fetchNotifications = useCallback(async () => {
+    if (!token) return;
     try {
       setError("");
       const res = await axios.get(`${API}/notifications`, {
@@ -37,6 +40,7 @@ const Notifications = () => {
 
   // Fetch unread count from API
   const getUnreadCount = useCallback(async () => {
+    if (!token) return;
     try {
       const res = await axios.get(`${API}/notifications/unread/count`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -51,6 +55,7 @@ const Notifications = () => {
   // Mark single notification as read
   const markAsRead = useCallback(
     async (notificationId) => {
+      if (!token) return;
       try {
         await axios.put(`${API}/notifications/${notificationId}/read`, {}, {
           headers: { Authorization: `Bearer ${token}` },
@@ -73,6 +78,7 @@ const Notifications = () => {
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
+    if (!token) return;
     try {
       await axios.put(`${API}/notifications/read/all`, {}, {
         headers: { Authorization: `Bearer ${token}` },
@@ -89,6 +95,7 @@ const Notifications = () => {
   // Delete notification
   const deleteNotification = useCallback(
     async (notificationId) => {
+      if (!token) return;
       try {
         await axios.delete(`${API}/notifications/${notificationId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -98,7 +105,6 @@ const Notifications = () => {
           prev.filter((notif) => notif._id !== notificationId)
         );
 
-        // Recalculate unread count
         getUnreadCount();
         console.log(`✅ Deleted notification`);
       } catch (err) {
@@ -110,9 +116,13 @@ const Notifications = () => {
 
   // Initialize socket and fetch data on component mount
   useEffect(() => {
-    if (!currentUser._id) {
-      setError("User not found. Please login again.");
-      setLoading(false);
+    // 🔐 SAFE AUTH CHECK: Validate token and user data
+    if (!token || !currentUser?._id) {
+      console.warn("❌ Auth check failed. Token:", !!token, "User ID:", currentUser?._id);
+      // Only redirect if no token AND no user data
+      if (!token && !currentUser?._id) {
+        navigate("/", { replace: true });
+      }
       return;
     }
 
@@ -139,11 +149,9 @@ const Notifications = () => {
     });
 
     return () => {
-      // Cleanup: Note - we don't disconnect socket here as it might be used elsewhere
-      // Just remove the listener
       console.log("🧹 Cleaning up notification listeners");
     };
-  }, [currentUser._id, fetchNotifications, getUnreadCount]);
+  }, [currentUser._id, fetchNotifications, getUnreadCount, navigate]);
 
   const getNotificationIcon = (type) => {
     const icons = {
@@ -159,35 +167,35 @@ const Notifications = () => {
 
   const getNotificationColor = (type) => {
     const colors = {
-      connection_request: "bg-blue-50 border-blue-200",
-      request_accepted: "bg-green-50 border-green-200",
-      request_rejected: "bg-red-50 border-red-200",
-      skill_added: "bg-purple-50 border-purple-200",
-      post_liked: "bg-pink-50 border-pink-200",
-      comment_added: "bg-yellow-50 border-yellow-200",
+      connection_request: "bg-blue-50 border-l-4 border-l-blue-500",
+      request_accepted: "bg-green-50 border-l-4 border-l-green-500",
+      request_rejected: "bg-red-50 border-l-4 border-l-red-500",
+      skill_added: "bg-purple-50 border-l-4 border-l-purple-500",
+      post_liked: "bg-pink-50 border-l-4 border-l-pink-500",
+      comment_added: "bg-yellow-50 border-l-4 border-l-yellow-500",
     };
-    return colors[type] || "bg-gray-50 border-gray-200";
+    return colors[type] || "bg-gray-50 border-l-4 border-l-gray-500";
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="bg-[#F3F2EF] min-h-screen">
+      <Navbar />
+      
+      <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">🔔 Notifications</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
             {unreadCount > 0 && (
               <p className="text-sm text-gray-600 mt-1">
-                You have{" "}
-                <span className="font-bold text-blue-600">{unreadCount}</span>{" "}
-                unread notifications
+                <span className="font-bold text-[#0A66C2]">{unreadCount}</span> unread
               </p>
             )}
           </div>
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              className="bg-[#0A66C2] text-white px-5 py-2 rounded-lg hover:bg-[#0952A4] transition-colors font-semibold"
             >
               Mark all as read
             </button>
@@ -203,13 +211,15 @@ const Notifications = () => {
 
         {/* Loading State */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin text-2xl">⏳</div>
-            <p className="mt-2 text-gray-600">Loading notifications...</p>
+          <div className="text-center py-12 bg-white rounded-lg">
+            <div className="inline-block animate-spin">
+              <div className="w-10 h-10 border-4 border-gray-300 border-t-[#0A66C2] rounded-full"></div>
+            </div>
+            <p className="mt-4 text-gray-600">Loading notifications...</p>
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow">
-            <p className="text-lg text-gray-600">No notifications yet!</p>
+            <p className="text-lg font-semibold text-gray-700">No notifications yet!</p>
             <p className="text-sm text-gray-500 mt-2">
               When someone interacts with you, you'll see it here.
             </p>
@@ -219,16 +229,16 @@ const Notifications = () => {
             {notifications.map((notification) => (
               <div
                 key={notification._id}
-                className={`p-4 rounded-lg border ${
+                className={`p-4 rounded-lg border transition-all hover:shadow-md ${
                   notification.read
                     ? "bg-white border-gray-200"
                     : getNotificationColor(notification.type)
-                } ${!notification.read ? "border-l-4" : ""} hover:shadow-md transition-shadow`}
+                } ${!notification.read ? "shadow-sm" : ""}`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 flex-1">
+                  <div className="flex items-start gap-3 flex-1">
                     {/* Icon */}
-                    <div className="text-2xl mt-1 flex-shrink-0">
+                    <div className="text-2xl flex-shrink-0 mt-1">
                       {getNotificationIcon(notification.type)}
                     </div>
 
@@ -236,24 +246,24 @@ const Notifications = () => {
                     <div className="flex-1 min-w-0">
                       {/* Sender Info */}
                       {notification.sender && (
-                        <div
-                          className="flex items-center gap-2 mb-2 cursor-pointer hover:opacity-80"
-                          onClick={() =>
-                            navigate(`/profile/${notification.sender._id}`)
-                          }
-                        >
+                        <div className="flex items-center gap-2 mb-2">
                           <img
                             src={
                               notification.sender.profileImage ||
                               "https://via.placeholder.com/32"
                             }
                             alt={notification.sender.name}
-                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                            onError={(e) => {
-                              e.target.src = "https://via.placeholder.com/32";
-                            }}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer hover:ring-2 ring-[#0A66C2]"
+                            onClick={() =>
+                              navigate(`/profile/${notification.sender._id}`)
+                            }
                           />
-                          <p className="font-semibold text-gray-900 hover:text-blue-600 truncate">
+                          <p
+                            className="font-semibold text-gray-900 hover:text-[#0A66C2] cursor-pointer truncate text-sm"
+                            onClick={() =>
+                              navigate(`/profile/${notification.sender._id}`)
+                            }
+                          >
                             {notification.sender.name}
                           </p>
                         </div>
@@ -267,6 +277,7 @@ const Notifications = () => {
                       {/* Time */}
                       <p className="text-xs text-gray-500 mt-2">
                         {new Date(notification.createdAt).toLocaleDateString()}{" "}
+                        at{" "}
                         {new Date(notification.createdAt).toLocaleTimeString(
                           [],
                           {
@@ -279,7 +290,7 @@ const Notifications = () => {
 
                     {/* Unread indicator */}
                     {!notification.read && (
-                      <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-2"></div>
+                      <div className="w-3 h-3 bg-[#0A66C2] rounded-full flex-shrink-0 mt-1 animate-pulse"></div>
                     )}
                   </div>
 
@@ -288,16 +299,18 @@ const Notifications = () => {
                     {!notification.read && (
                       <button
                         onClick={() => markAsRead(notification._id)}
-                        className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors whitespace-nowrap"
+                        title="Mark as read"
+                        className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
                       >
-                        ✓ Read
+                        <Check size={18} />
                       </button>
                     )}
                     <button
                       onClick={() => deleteNotification(notification._id)}
-                      className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors whitespace-nowrap"
+                      title="Delete"
+                      className="p-2 text-gray-600 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors"
                     >
-                      ✕ Delete
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </div>

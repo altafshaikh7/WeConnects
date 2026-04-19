@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import { MoreHorizontal, Trash2, UserX, Link2, Flag, Edit } from "lucide-react";
+import UnfollowModal from "./UnfollowModal";
 
-const PostOptions = ({ post, onDelete, currentUserId }) => {
+const PostOptions = ({ post, onDelete, currentUserId, onUnfollow, onCopyLink }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
+  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
   const menuRef = useRef(null);
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
-  const token = localStorage.getItem("token");
 
-  const isOwner = post.user._id === currentUserId;
+  const isOwner = String(post?.user?._id) === String(currentUserId);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -23,147 +25,199 @@ const PostOptions = ({ post, onDelete, currentUserId }) => {
   }, []);
 
   const handleCopyLink = () => {
-    const postUrl = `${window.location.origin}/posts/${post._id}`;
+    const postUrl = `${window.location.origin}/post/${post._id}`;
     navigator.clipboard.writeText(postUrl);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+    
+    // Use toast if available, otherwise alert
+    if (window.toast) {
+      window.toast.success("Link copied to clipboard!");
+    } else {
+      alert("Link copied to clipboard!");
+    }
+    
     setIsOpen(false);
+    if (onCopyLink) onCopyLink(post._id);
   };
 
   const handleDelete = async () => {
-    if (window.confirm("Are you sure you want to delete this post?")) {
-      try {
-        await axios.delete(`${API}/posts/${post._id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        onDelete(post._id);
-        setIsOpen(false);
-      } catch (err) {
-        console.error("Error deleting post:", err);
-        alert("Failed to delete post");
+    if (!window.confirm("Are you sure you want to delete this post? This action cannot be undone.")) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`${API}/posts/${post._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      // Use toast if available
+      if (window.toast) {
+        window.toast.success("Post deleted successfully");
+      } else {
+        alert("Post deleted ✅");
       }
+      
+      onDelete(post._id);
+      setIsOpen(false);
+    } catch (err) {
+      console.error("Error deleting post:", err);
+      if (window.toast) {
+        window.toast.error("Failed to delete post");
+      } else {
+        alert("Failed to delete post ❌");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnfollowClick = () => {
+    setIsOpen(false);
+    setShowUnfollowModal(true);
+  };
+
+  const handleConfirmUnfollow = async (userId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `${API}/users/unfollow`,
+        { userId: userId },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      // Use toast if available
+      if (window.toast) {
+        window.toast.success(`Unfollowed ${post?.user?.name}`);
+      } else {
+        alert(`Unfollowed ${post?.user?.name} ✅`);
+      }
+      
+      setShowUnfollowModal(false);
+      
+      // Call parent callback to refresh feed
+      if (onUnfollow) {
+        onUnfollow(userId);
+      }
+    } catch (err) {
+      console.error("Error unfollowing:", err);
+      if (window.toast) {
+        window.toast.error("Failed to unfollow");
+      } else {
+        alert("Failed to unfollow ❌");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReport = () => {
+    setIsOpen(false);
+    if (window.toast) {
+      window.toast.success("Thank you for reporting. Our team will review it.");
+    } else {
+      alert("Thank you for reporting. Our team will review it.");
     }
   };
 
   return (
-    <div className="relative" ref={menuRef}>
-      {/* Menu Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-        aria-label="Post options"
-      >
-        <svg
-          className="w-5 h-5 text-gray-600"
-          fill="currentColor"
-          viewBox="0 0 20 20"
+    <>
+      <div className="relative" ref={menuRef}>
+        {/* Menu Button */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200 flex items-center justify-center"
+          aria-label="Post options"
+          title="More options"
+          disabled={loading}
         >
-          <path d="M10.5 1.5H9.5V3.5H10.5V1.5ZM10.5 8.5H9.5V10.5H10.5V8.5ZM10.5 15.5H9.5V17.5H10.5V15.5Z" />
-        </svg>
-      </button>
+          <MoreHorizontal size={20} className="text-gray-600 hover:text-gray-900" />
+        </button>
 
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          {/* Copy Link */}
-          <button
-            onClick={handleCopyLink}
-            className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 flex items-center gap-2 border-b border-gray-100"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.658 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-              />
-            </svg>
-            <span>{isCopied ? "Copied! ✓" : "Copy link"}</span>
-          </button>
-
-          {/* Edit Post (only for owner) */}
-          {isOwner && (
+        {/* Dropdown Menu */}
+        {isOpen && (
+          <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50 overflow-hidden animate-fadeIn">
+            {/* Copy Link - Always visible */}
             <button
-              onClick={() => {
-                setIsOpen(false);
-                // TODO: Implement edit post functionality
-                alert("Edit post feature coming soon");
-              }}
-              className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 flex items-center gap-2 border-b border-gray-100"
+              onClick={handleCopyLink}
+              disabled={loading}
+              className="w-full text-left px-4 py-3 hover:bg-gray-50 text-gray-700 flex items-center gap-3 transition-all duration-200 disabled:opacity-50 group"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
-              Edit post
+              <Link2 size={18} className="text-gray-500 group-hover:text-blue-600" />
+              <span className="text-sm font-medium">Copy link</span>
             </button>
-          )}
 
-          {/* Delete Post (only for owner) */}
-          {isOwner && (
-            <button
-              onClick={handleDelete}
-              className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {/* Edit Post - Only for owner */}
+            {isOwner && (
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  // You can implement edit functionality here
+                  if (window.toast) {
+                    window.toast.info("Edit feature coming soon");
+                  } else {
+                    alert("Edit post feature coming soon");
+                  }
+                }}
+                disabled={loading}
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 text-gray-700 flex items-center gap-3 border-t border-gray-100 transition-all duration-200 disabled:opacity-50 group"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              Delete post
-            </button>
-          )}
+                <Edit size={18} className="text-gray-500 group-hover:text-green-600" />
+                <span className="text-sm font-medium">Edit post</span>
+              </button>
+            )}
 
-          {/* Report Post (for non-owners) */}
-          {!isOwner && (
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                alert("Thank you for reporting. Our team will review it.");
-              }}
-              className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {/* Delete Post - Only for owner */}
+            {isOwner && (
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 flex items-center gap-3 border-t border-gray-100 transition-all duration-200 disabled:opacity-50 group"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4v2m0 0v2m0-2v-2m0 0H9m3 0h3"
-                />
-              </svg>
-              Report post
-            </button>
-          )}
-        </div>
+                <Trash2 size={18} className="text-red-500 group-hover:text-red-600" />
+                <span className="text-sm font-medium">{loading ? "Deleting..." : "Delete post"}</span>
+              </button>
+            )}
+
+            {/* Unfollow Option - Only for non-owners */}
+            {!isOwner && (
+              <button
+                onClick={handleUnfollowClick}
+                disabled={loading}
+                className="w-full text-left px-4 py-3 hover:bg-orange-50 text-orange-600 flex items-center gap-3 border-t border-gray-100 transition-all duration-200 disabled:opacity-50 group"
+              >
+                <UserX size={18} className="text-orange-500 group-hover:text-orange-600" />
+                <span className="text-sm font-medium">Unfollow {post?.user?.name}</span>
+              </button>
+            )}
+
+            {/* Report Post - Only for non-owners */}
+            {!isOwner && (
+              <button
+                onClick={handleReport}
+                disabled={loading}
+                className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 flex items-center gap-3 border-t border-gray-100 transition-all duration-200 disabled:opacity-50 group"
+              >
+                <Flag size={18} className="text-red-500 group-hover:text-red-600" />
+                <span className="text-sm font-medium">Report post</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Unfollow Modal */}
+      {showUnfollowModal && (
+        <UnfollowModal
+          user={post.user}
+          onUnfollow={handleConfirmUnfollow}
+          onCancel={() => setShowUnfollowModal(false)}
+        />
       )}
-    </div>
+    </>
   );
 };
 

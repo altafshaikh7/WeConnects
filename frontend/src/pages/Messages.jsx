@@ -14,8 +14,11 @@ function Messages() {
   const [messageText, setMessageText] = useState("");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [socket, setSocket] = useState(null);
+  const [unreadMessages, setUnreadMessages] = useState({});
 
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
@@ -63,7 +66,49 @@ function Messages() {
     };
   }, [token, currentUser._id, navigate]);
 
-  // Fetch conversations
+  // 🔍 SEARCH FOR NEW USERS TO START CONVERSATION
+  useEffect(() => {
+    if (!token) return;
+
+    const searchUsers = async () => {
+      if (searchQuery.trim() === "") {
+        setSearchResults([]);
+        setShowSearchResults(false);
+        return;
+      }
+
+      try {
+        const res = await axios.get(`${API}/search/users?query=${searchQuery}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        // Filter out users already in conversations
+        const conversationUserIds = conversations.map((c) => c.user._id);
+        const filteredUsers = res.data.filter(
+          (user) =>
+            !conversationUserIds.includes(user._id) &&
+            user._id !== currentUser._id
+        );
+
+        setSearchResults(filteredUsers || []);
+        setShowSearchResults(true);
+      } catch (err) {
+        console.error("Search error:", err);
+        setSearchResults([]);
+      }
+    };
+
+    const timer = setTimeout(searchUsers, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, API, token, conversations, currentUser._id]);
+
+  const startNewConversation = (user) => {
+    setSelectedUser(user);
+    setSearchQuery("");
+    setShowSearchResults(false);
+  };
+
+  // Fetch conversations when user is selected
   useEffect(() => {
     if (!token) return;
 
@@ -189,11 +234,45 @@ function Messages() {
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#666666]" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder="Search or start new conversation..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                   className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-[#0A66C2]"
                 />
+
+                {/* Search Results Dropdown */}
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-50">
+                    <div className="p-2">
+                      <p className="text-xs text-gray-600 px-2 py-1 font-semibold">
+                        Start new conversation
+                      </p>
+                      {searchResults.map((user) => (
+                        <button
+                          key={user._id}
+                          onClick={() => startNewConversation(user)}
+                          className="w-full flex items-center gap-2 px-2 py-2 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                        >
+                          <img
+                            src={
+                              user.profileImage ||
+                              "https://via.placeholder.com/40"
+                            }
+                            alt={user.name}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold">{user.name}</p>
+                            <p className="text-xs text-gray-600 truncate">
+                              {user.headline}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
