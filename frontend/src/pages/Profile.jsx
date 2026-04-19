@@ -3,13 +3,15 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import ProfileCard from "../components/ProfileCard";
+import ImageCarousel from "../components/ImageCarousel";
+import PostOptions from "../components/PostOptions";
 import { searchAPI } from "../api/apiClient";
 
 function Profile() {
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAllPosts, setShowAllPosts] = useState(false);
+  const [postsToShow, setPostsToShow] = useState(9); // Show 3 rows (3 columns × 3 rows)
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -74,7 +76,8 @@ function Profile() {
     await fetchProfile();
   };
 
-  const displayedPosts = showAllPosts ? posts : posts.slice(0, 3);
+  const displayedPosts = posts.slice(0, postsToShow);
+  const hasMorePosts = posts.length > postsToShow;
 
   if (loading) {
     return (
@@ -94,51 +97,66 @@ function Profile() {
         <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-4">
             <div className="bg-white rounded-xl border p-4">
-              <h2 className="text-lg font-semibold mb-3">{isOwner ? "Your Posts" : `${user?.name}'s Posts`}</h2>
+              <h2 className="text-lg font-semibold mb-4">{isOwner ? "Your Posts" : `${user?.name}'s Posts`}</h2>
               {posts.length === 0 ? (
                 <p className="text-sm text-[#666666]">
                   {isOwner ? "No posts yet. Create one from Home to display it here." : "No posts yet."}
                 </p>
               ) : (
                 <>
-                  {displayedPosts.map((post) => (
-                    <div key={post._id} className="border rounded-xl p-4 mb-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <img
-                          src={user.profileImage}
-                          alt="avatar"
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div>
-                          <p className="font-semibold">{user.name}</p>
-                          <p className="text-xs text-[#666666]">
-                            {new Date(post.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                      {post.text && <p className="text-sm mb-3">{post.text}</p>}
-                      {post.images?.length > 0 && (
-                        <div className="grid grid-cols-1 gap-3">
-                          {post.images.map((img, index) => (
+                  {/* Posts Grid (3 columns) */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    {displayedPosts.map((post) => {
+                      const allImages = [
+                        ...(post?.image ? [post.image] : []),
+                        ...(post?.images || []),
+                      ];
+                      
+                      return (
+                        <div
+                          key={post._id}
+                          className="group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer aspect-square"
+                        >
+                          {/* Post Image or Placeholder */}
+                          {allImages.length > 0 ? (
                             <img
-                              key={index}
-                              src={img}
-                              alt={`post-${index}`}
-                              className="w-full rounded-xl object-cover"
+                              src={allImages[0]}
+                              alt="post"
+                              className="w-full h-full object-cover group-hover:brightness-75 transition-all"
+                              onError={(e) => {
+                                e.target.src = "https://via.placeholder.com/400";
+                              }}
                             />
-                          ))}
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center">
+                              <span className="text-4xl">📄</span>
+                            </div>
+                          )}
+
+                          {/* Image Count Badge */}
+                          {allImages.length > 1 && (
+                            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                              +{allImages.length}
+                            </div>
+                          )}
+
+                          {/* Overlay Info */}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center items-center">
+                            <div className="text-white text-center text-xs px-2">
+                              <p className="font-semibold mb-1 line-clamp-2">{post.text || "No caption"}</p>
+                              <p className="text-xs">❤️ {post.likes?.length || 0} · 💬 {post.comments?.length || 0}</p>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div className="mt-3 text-xs text-[#666666] flex justify-between">
-                        <span>{post.likes?.length || 0} likes</span>
-                        <span>{post.comments?.length || 0} comments</span>
-                      </div>
-                    </div>
-                  ))}
-                  {posts.length > 3 && !showAllPosts && (
+                      );
+                    })}
+                  </div>
+
+                  {/* See More Button */}
+                  {hasMorePosts && (
                     <button
-                      onClick={() => setShowAllPosts(true)}
-                      className="w-full text-center py-2 text-[#0A66C2] font-semibold hover:underline"
+                      onClick={() => setPostsToShow((prev) => prev + 9)}
+                      className="w-full text-center py-2 text-[#0A66C2] font-semibold hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       See More
                     </button>

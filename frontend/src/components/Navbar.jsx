@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Home, Users, Search, Bell, LogOut } from "lucide-react";
+import { Menu, X, Home, Users, Search, Bell, LogOut, MessageCircle } from "lucide-react";
 import Logo from "./logo";
 import axios from "axios";
 
@@ -18,6 +18,7 @@ function Navbar() {
   const navItems = [
     { label: "Home", icon: Home, path: "/home" },
     { label: "Network", icon: Users, path: "/network" },
+    { label: "Messages", icon: MessageCircle, path: "/messages" },
   ];
 
   const isActive = (path) => location.pathname === path;

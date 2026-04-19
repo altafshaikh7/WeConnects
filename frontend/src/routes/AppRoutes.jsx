@@ -5,6 +5,8 @@ import Signup from "../pages/Signup";
 import Home from "../pages/Home";
 import Profile from "../pages/Profile";
 import Network from "../pages/Network";
+import Messages from "../pages/Messages";
+import Notifications from "../pages/Notifications";
 
 // 👇 NEW IMPORTS
 import ForgotPassword from "../pages/ForgotPassword";
@@ -23,6 +25,8 @@ function AppRoutes() {
         {/* 🏠 MAIN APP */}
         <Route path="/home" element={<Home />} />
         <Route path="/network" element={<Network />} />
+        <Route path="/messages" element={<Messages />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile/:id" element={<Profile />} />
         <Route path="/profile" element={<Profile />} />
 

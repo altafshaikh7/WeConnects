@@ -3,6 +3,9 @@ import axios from "axios";
 import io from "socket.io-client";
 import CreatePostModal from "./CreatePostModal";
 import FollowButton from "./FollowButton";
+import ImageCarousel from "./ImageCarousel";
+import PostOptions from "./PostOptions";
+import ShareModal from "./ShareModal";
 import { ThumbsUp, MessageCircle, Share2, X } from "lucide-react";
 
 function Feed() {
@@ -12,6 +15,7 @@ function Feed() {
   const [replies, setReplies] = useState({});
   const [openComment, setOpenComment] = useState(null);
   const [expandedReplies, setExpandedReplies] = useState({});
+  const [shareModal, setShareModal] = useState({ isOpen: false, post: null });
 
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const currentUser = JSON.parse(localStorage.getItem("user")) || { _id: "" };
@@ -231,6 +235,10 @@ function Feed() {
     }
   };
 
+  const handleDeletePost = (postId) => {
+    setPosts((prevPosts) => prevPosts.filter((post) => post._id !== postId));
+  };
+
   return (
     <div className="w-full max-w-[560px] mx-auto px-2 sm:px-4">
 
@@ -279,24 +287,31 @@ function Feed() {
           </h4>
         </div>
 
-        {/* ✅ FOLLOW BUTTON SHIFTED HERE */}
-        {post.user._id !== currentUser._id && (
-          <FollowButton
-            user={post.user}
-            isFollowing={currentUser?.following?.includes(post.user._id)}
-            onFollowChange={handleRefreshPosts}
+        <div className="flex items-center gap-2">
+          {/* Follow Button */}
+          {post.user._id !== currentUser._id && (
+            <FollowButton
+              user={post.user}
+              isFollowing={currentUser?.following?.includes(post.user._id)}
+              onFollowChange={handleRefreshPosts}
+            />
+          )}
+
+          {/* Post Options (3-dot menu) */}
+          <PostOptions
+            post={post}
+            onDelete={handleDeletePost}
+            currentUserId={currentUser._id}
           />
-        )}
+        </div>
 
       </div>
 
       {post?.text && <p className="mt-2">{post.text}</p>}
     </div>
 
-    {/* IMAGES */}
-    {allImages.map((img, i) => (
-      <img key={i} src={img} className="w-full" />
-    ))}
+    {/* IMAGES - Using ImageCarousel Component */}
+    {allImages.length > 0 && <ImageCarousel images={allImages} />}
 
     {/* STATS */}
     <div className="px-4 py-2 flex justify-between text-sm text-gray-500">
@@ -329,9 +344,11 @@ function Feed() {
         Comment
       </button>
 
-      {/* ❌ FOLLOW BUTTON REMOVED FROM HERE */}
-
-      <button className="py-2 flex justify-center items-center gap-1 text-gray-600 hover:text-blue-600">
+      {/* SHARE */}
+      <button
+        onClick={() => setShareModal({ isOpen: true, post })}
+        className="py-2 flex justify-center items-center gap-1 text-gray-600 hover:text-blue-600"
+      >
         <Share2 size={18} />
         Share
       </button>
@@ -474,6 +491,13 @@ function Feed() {
           </div>
         );
       })}
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={shareModal.isOpen}
+        onClose={() => setShareModal({ isOpen: false, post: null })}
+        post={shareModal.post}
+      />
     </div>
   );
 }

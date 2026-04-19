@@ -3,6 +3,7 @@ import axios from "axios";
 import { X, Image as ImageIcon } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import imageCompression from "browser-image-compression";
+import VisibilityModal from "./VisibilityModal";
 
 function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const [text, setText] = useState("");
@@ -11,6 +12,8 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const [loading, setLoading] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showVisibility, setShowVisibility] = useState(false);
+  const [visibility, setVisibility] = useState("public");
 
   const fileInputRef = useRef(null);
 
@@ -128,18 +131,25 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
         <div className="p-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
 
           {/* USER */}
-          <div className="flex items-center gap-3">
-            <img
-              src={
-                currentUser?.profileImage ||
-                `https://ui-avatars.com/api/?name=${currentUser?.name || "User"}`
-              }
-              className="w-12 h-12 rounded-full object-cover border"
-            />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={
+                  currentUser?.profileImage ||
+                  `https://ui-avatars.com/api/?name=${currentUser?.name || "User"}`
+                }
+                className="w-12 h-12 rounded-full object-cover border"
+              />
 
-            <div>
-              <p className="font-semibold">{currentUser?.name || "User"}</p>
-              <p className="text-xs text-gray-500">Post to Anyone 🌍</p>
+              <div>
+                <p className="font-semibold">{currentUser?.name || "User"}</p>
+                <button
+                  onClick={() => setShowVisibility(true)}
+                  className="text-xs text-gray-600 hover:text-blue-600 text-left hover:underline"
+                >
+                  {visibility === "public" ? "Post to Anyone 🌍" : "Connections only 🔗"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -205,6 +215,14 @@ function CreatePostModal({ isOpen, onClose, onPostCreated }) {
             <EmojiPicker onEmojiClick={handleEmojiClick} />
           </div>
         )}
+
+        {/* Visibility Modal */}
+        <VisibilityModal
+          isOpen={showVisibility}
+          onClose={() => setShowVisibility(false)}
+          onSelect={setVisibility}
+          currentVisibility={visibility}
+        />
       </div>
     </div>
   );
