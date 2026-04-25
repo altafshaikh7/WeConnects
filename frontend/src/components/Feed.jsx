@@ -402,20 +402,19 @@ function Feed() {
             (id) => String(id) === String(currentUser._id)
           );
 
-          // ✅ CRITICAL FIX: Check if this is current user's own post
+          // ✅ SIMPLE CHECK - LinkedIn style
+          // Sirf ID se compare karo
           const isOwnPost = String(post?.user?._id) === String(currentUser._id);
           
-          // ✅ Check if current user is following the post author
+          // Check following status
           const isFollowing = currentUser?.following?.some(
             (followingId) => String(followingId) === String(post?.user?._id)
           ) || false;
           
-          // ✅ Check if post author follows back (mutual)
           const isFollowedBack = post?.user?.following?.some(
             (followerId) => String(followerId) === String(currentUser._id)
           ) || false;
           
-          // ✅ Mutual followers = both follow each other
           const isMutualFollower = isFollowing && isFollowedBack;
 
           return (
@@ -443,31 +442,25 @@ function Feed() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* ✅ CORRECTED: Follow button - ONLY for other users when NOT following */}
-                    {!isOwnPost && !isFollowing && (
-                      <FollowButton
-                        user={post.user}
-                        isFollowing={isFollowing}
-                        isMutualFollower={isMutualFollower}
-                        onFollowChange={handleRefreshPosts}
-                      />
-                    )}
-
-                    {/* Show "Following" badge for non-mutual follows */}
-                    {!isOwnPost && isFollowing && !isMutualFollower && (
-                      <button
-                        disabled
-                        className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 cursor-default"
-                      >
-                        Following
-                      </button>
-                    )}
-
-                    {/* Show "Connected" badge for mutual follows */}
-                    {!isOwnPost && isMutualFollower && (
-                      <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                        Connected
-                      </span>
+                    {/* ✅✅✅ LINKEDIN STYLE LOGIC - Sirf tab dikhega jab own post nahi hai */}
+                    {!isOwnPost && (
+                      <>
+                        {!isFollowing ? (
+                          <FollowButton
+                            user={post.user}
+                            isFollowing={isFollowing}
+                            isMutualFollower={isMutualFollower}
+                            onFollowChange={handleRefreshPosts}
+                          />
+                        ) : (
+                          <button
+                            disabled
+                            className="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 cursor-default"
+                          >
+                            {isMutualFollower ? "Connected" : "Following"}
+                          </button>
+                        )}
+                      </>
                     )}
 
                     <PostOptions

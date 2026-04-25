@@ -4,6 +4,21 @@ import UnfollowModal from "./UnfollowModal";
 import { UserPlus, UserMinus, Clock, UserCheck } from "lucide-react";
 
 function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = false }) {
+  // ✅✅✅ CRITICAL FIX - Sabse pehle current user check
+  const currentUser = JSON.parse(localStorage.getItem("user")) || { _id: "", name: "", email: "" };
+  
+  // Agar current user hi hai toh button return hi mat karo
+  if (String(user?._id) === String(currentUser?._id)) {
+    console.log("🔴 FollowButton: Own profile - hiding button");
+    return null;
+  }
+  
+  // Agar name same hai toh bhi return null
+  if (user?.name === currentUser?.name) {
+    console.log("🔴 FollowButton: Same name - hiding button");
+    return null;
+  }
+
   const [loading, setLoading] = useState(false);
   const [showUnfollowModal, setShowUnfollowModal] = useState(false);
   const [followStatus, setFollowStatus] = useState(isFollowing ? "following" : "not-following");
@@ -25,10 +40,8 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         { headers: getAuthHeader() }
       );
       
-      // Check if it's an instant follow or pending request
       if (response.data.status === "accepted" || response.data.isFollowing) {
         setFollowStatus("following");
-        // Use toast or alert
         if (window.toast) {
           window.toast.success(`You are now following ${user.name}`);
         } else {
@@ -93,12 +106,10 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
     }
   };
 
-  // 🔴 HIDE BUTTON: If already mutually following (connected)
   if (isMutualFollower) {
     return null;
   }
 
-  // Get button text and style based on status
   const getButtonConfig = () => {
     switch (followStatus) {
       case "following":
@@ -124,7 +135,6 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
 
   const buttonConfig = getButtonConfig();
 
-  // Following button with unfollow modal
   if (followStatus === "following") {
     return (
       <>
@@ -159,7 +169,6 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
     );
   }
 
-  // Follow or Pending button
   return (
     <button
       onClick={followStatus === "pending" ? undefined : handleFollow}
