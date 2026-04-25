@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Home, Users, Search, Bell, LogOut, MessageCircle } from "lucide-react";
+import { Menu, X, Home, Users, Search, Bell, LogOut, MessageCircle, User, Settings } from "lucide-react";
 import Logo from "./logo";
 import axios from "axios";
 import io from "socket.io-client";
 
 function Navbar() {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -15,7 +14,16 @@ function Navbar() {
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  });
   const searchRef = useRef(null);
+  const profileDropdownRef = useRef(null);
 
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
@@ -27,6 +35,46 @@ function Navbar() {
   ];
 
   const isActive = (path) => location.pathname === path;
+
+  // 🔄 Listen for profile update events
+  useEffect(() => {
+    const handleProfileUpdate = (event) => {
+      if (event.detail?.user) {
+        setUser(event.detail.user);
+        localStorage.setItem("user", JSON.stringify(event.detail.user));
+      }
+    };
+
+    window.addEventListener("profileUpdated", handleProfileUpdate);
+    
+    const handleStorageChange = (e) => {
+      if (e.key === "user" && e.newValue) {
+        try {
+          setUser(JSON.parse(e.newValue));
+        } catch (err) {
+          console.error("Error parsing user from storage:", err);
+        }
+      }
+    };
+    
+    window.addEventListener("storage", handleStorageChange);
+    
+    return () => {
+      window.removeEventListener("profileUpdated", handleProfileUpdate);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // 🔔 FETCH UNREAD NOTIFICATION COUNT
   const fetchUnreadCount = async () => {
@@ -45,10 +93,8 @@ function Navbar() {
   useEffect(() => {
     if (!user._id) return;
 
-    // Fetch initial unread count
     fetchUnreadCount();
 
-    // Setup Socket.io listener for real-time notifications
     const socket = io("http://localhost:5000", {
       reconnection: true,
       reconnectionDelay: 1000,
@@ -105,7 +151,7 @@ function Navbar() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Close dropdown when clicking outside
+  // Close search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -130,9 +176,17 @@ function Navbar() {
     navigate("/");
   };
 
+  // Get profile image with fallback
+  const getProfileImage = () => {
+    if (user?.profileImage && user.profileImage !== "https://via.placeholder.com/40") {
+      return user.profileImage;
+    }
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
+  };
+
   return (
     <div className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3 gap-4">
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 gap-2 sm:gap-4">
 
         {/* LEFT - LOGO */}
         <div className="flex-shrink-0">
@@ -173,13 +227,16 @@ function Navbar() {
                     {!result.notFound && !result.error && (
                       <>
                         <img
-                          src={result.profileImage || "https://via.placeholder.com/40"}
+                          src={result.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`}
                           alt={result.name}
                           className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
+                          }}
                         />
-                        <div>
-                          <p className="font-medium text-sm">{result.name}</p>
-                          <p className="text-xs text-gray-600">{result.headline}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{result.name}</p>
+                          <p className="text-xs text-gray-600 truncate">{result.headline}</p>
                         </div>
                       </>
                     )}
@@ -192,10 +249,10 @@ function Navbar() {
         </div>
 
         {/* RIGHT - NAV ITEMS */}
-        <div className="flex items-center gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600">
+        <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm text-gray-600">
 
           {/* DESKTOP MENU */}
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-4 lg:gap-6">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -211,7 +268,7 @@ function Navbar() {
                       : "text-gray-600 hover:text-black"
                   }`}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} />
                   <span className="text-[10px] mt-1">{item.label}</span>
                 </div>
               );
@@ -220,12 +277,12 @@ function Navbar() {
             <div 
               onClick={() => {
                 navigate("/notifications");
-                setUnreadCount(0); // Reset badge when clicking
+                setUnreadCount(0);
               }}
               className="flex flex-col items-center cursor-pointer hover:text-black transition relative"
             >
               <div className="relative">
-                <Bell size={18} />
+                <Bell size={20} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                     {unreadCount > 99 ? "99+" : unreadCount}
@@ -236,42 +293,88 @@ function Navbar() {
             </div>
           </div>
 
-          {/* PROFILE */}
-          <div
-            className="relative group hidden md:flex flex-col items-center cursor-pointer"
-            onClick={() => {
-              navigate("/profile");
-              setOpen(false);
-            }}
-          >
-            <img
-              src={user?.profileImage || "https://via.placeholder.com/40"}
-              alt="user"
-              className="w-8 h-8 rounded-full object-cover hover:ring-2 ring-blue-500 transition"
-            />
-            <span className="text-xs mt-1">Me</span>
+          {/* PROFILE - with dropdown menu */}
+          <div className="relative" ref={profileDropdownRef}>
+            <div
+              className="relative group flex flex-col items-center cursor-pointer"
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            >
+              <img
+                src={getProfileImage()}
+                alt="user"
+                className="w-8 h-8 rounded-full object-cover hover:ring-2 ring-blue-500 transition"
+                onError={(e) => {
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
+                }}
+              />
+              <span className="text-xs mt-1 hidden sm:block">Me</span>
+            </div>
 
             {/* DROPDOWN MENU */}
-            <div className="absolute top-12 right-0 bg-white shadow-lg rounded-md p-3 hidden group-hover:block whitespace-nowrap">
-              <p className="text-sm font-semibold mb-2">
-                {user?.name || "User"}
-              </p>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  logout();
-                }}
-                className="text-red-500 text-sm hover:underline flex items-center gap-2"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
-            </div>
+            {showProfileDropdown && (
+              <div className="absolute top-10 right-0 mt-1 bg-white shadow-lg rounded-xl border border-gray-100 py-2 min-w-[200px] z-50 animate-fadeIn">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={getProfileImage()}
+                      alt="user"
+                      className="w-10 h-10 rounded-full object-cover"
+                      onError={(e) => {
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {user?.name || "User"}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {user?.headline || "View your profile"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    navigate("/profile");
+                    setShowProfileDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <User size={16} />
+                  View Profile
+                </button>
+
+                <button
+                  onClick={() => {
+                    navigate("/profile");
+                    setShowProfileDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Settings size={16} />
+                  Edit Profile
+                </button>
+
+                <div className="border-t border-gray-100 my-1"></div>
+
+                <button
+                  onClick={() => {
+                    logout();
+                    setShowProfileDropdown(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
 
           {/* MOBILE MENU BUTTON */}
           <button
-            className="md:hidden"
+            className="md:hidden p-2"
             onClick={() => setOpen(!open)}
           >
             {open ? <X size={20} /> : <Menu size={20} />}
@@ -281,7 +384,7 @@ function Navbar() {
 
       {/* MOBILE MENU */}
       {open && (
-        <div className="md:hidden px-4 pb-4 border-t bg-white">
+        <div className="md:hidden px-4 pb-4 border-t bg-white animate-slideDown">
           {/* MOBILE SEARCH */}
           <div className="mt-3 mb-4">
             <div className="flex items-center bg-[#eef3f8] px-3 py-2 rounded-lg">
@@ -304,7 +407,7 @@ function Navbar() {
                   navigate(item.path);
                   setOpen(false);
                 }}
-                className="cursor-pointer hover:text-blue-600"
+                className="cursor-pointer hover:text-blue-600 py-1"
               >
                 {item.label}
               </span>
@@ -314,30 +417,82 @@ function Navbar() {
                 navigate("/notifications");
                 setOpen(false);
               }}
-              className="cursor-pointer hover:text-blue-600"
+              className="cursor-pointer hover:text-blue-600 py-1"
             >
               Notifications
             </span>
 
             <hr />
 
-            <p className="font-semibold">
-              {user?.name || "User"}
-            </p>
+            <div className="flex items-center gap-3 py-2">
+              <img
+                src={getProfileImage()}
+                alt="user"
+                className="w-10 h-10 rounded-full object-cover"
+                onError={(e) => {
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
+                }}
+              />
+              <div>
+                <p className="font-semibold text-gray-900">{user?.name || "User"}</p>
+                <p className="text-xs text-gray-500">View your profile</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                navigate("/profile");
+                setOpen(false);
+              }}
+              className="text-left py-2 text-gray-700 hover:text-blue-600"
+            >
+              View Profile
+            </button>
 
             <button
               onClick={() => {
                 logout();
                 setOpen(false);
               }}
-              className="text-red-500 text-left hover:underline flex items-center gap-2"
+              className="text-left py-2 text-red-500 hover:text-red-600"
             >
-              <LogOut size={14} />
               Logout
             </button>
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+        
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

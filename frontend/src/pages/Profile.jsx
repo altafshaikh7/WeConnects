@@ -3,15 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import ProfileCard from "../components/ProfileCard";
-import ImageCarousel from "../components/ImageCarousel";
-import PostOptions from "../components/PostOptions";
 import { searchAPI } from "../api/apiClient";
 
 function Profile() {
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [postsToShow, setPostsToShow] = useState(9); // Show 3 rows (3 columns × 3 rows)
+  const [postsToShow, setPostsToShow] = useState(9);
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -28,6 +26,16 @@ function Profile() {
         headers: { Authorization: authHeader },
       });
       setUser(res.data);
+      
+      // If this is the current user's profile, update localStorage and notify navbar
+      if (isOwner && res.data) {
+        const updatedUser = { ...currentUser, ...res.data };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        // Dispatch event to notify Navbar about profile update
+        window.dispatchEvent(new CustomEvent("profileUpdated", { 
+          detail: { user: updatedUser } 
+        }));
+      }
     } catch (err) {
       console.error("Profile fetch error:", err);
       if (!token) navigate("/", { replace: true });
@@ -56,7 +64,7 @@ function Profile() {
       setLoading(true);
       await Promise.all([fetchProfile(), fetchPosts()]);
       
-      // 👁️ TRACK PROFILE VIEW - only if viewing someone else's profile
+      // Track profile view - only if viewing someone else's profile
       if (id && id !== currentUser._id) {
         try {
           await searchAPI.trackProfileView(id);
@@ -82,7 +90,10 @@ function Profile() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F3F2EF] flex items-center justify-center">
-        <p className="text-[#666666]">Loading profile...</p>
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-gray-200 border-t-[#0A66C2] rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#666666]">Loading profile...</p>
+        </div>
       </div>
     );
   }
@@ -92,7 +103,22 @@ function Profile() {
       <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <ProfileCard user={user} refreshProfile={refreshProfile} isOwner={isOwner} />
+        <ProfileCard 
+          user={user} 
+          refreshProfile={refreshProfile} 
+          isOwner={isOwner}
+          onProfileUpdate={(updatedUser) => {
+            // Update local user state
+            setUser(updatedUser);
+            // Update localStorage
+            const newUserData = { ...currentUser, ...updatedUser };
+            localStorage.setItem("user", JSON.stringify(newUserData));
+            // Dispatch event for navbar
+            window.dispatchEvent(new CustomEvent("profileUpdated", { 
+              detail: { user: newUserData } 
+            }));
+          }}
+        />
 
         <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-4">
@@ -104,7 +130,6 @@ function Profile() {
                 </p>
               ) : (
                 <>
-                  {/* Posts Grid (3 columns) */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     {displayedPosts.map((post) => {
                       const allImages = [
@@ -115,9 +140,9 @@ function Profile() {
                       return (
                         <div
                           key={post._id}
+                          onClick={() => navigate(`/post/${post._id}`)}
                           className="group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer aspect-square"
                         >
-                          {/* Post Image or Placeholder */}
                           {allImages.length > 0 ? (
                             <img
                               src={allImages[0]}
@@ -133,14 +158,12 @@ function Profile() {
                             </div>
                           )}
 
-                          {/* Image Count Badge */}
                           {allImages.length > 1 && (
-                            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                            <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full">
                               +{allImages.length}
                             </div>
                           )}
 
-                          {/* Overlay Info */}
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center items-center">
                             <div className="text-white text-center text-xs px-2">
                               <p className="font-semibold mb-1 line-clamp-2">{post.text || "No caption"}</p>
@@ -152,7 +175,6 @@ function Profile() {
                     })}
                   </div>
 
-                  {/* See More Button */}
                   {hasMorePosts && (
                     <button
                       onClick={() => setPostsToShow((prev) => prev + 9)}
@@ -169,13 +191,13 @@ function Profile() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border p-4">
               <h2 className="text-lg font-semibold mb-3">About</h2>
-              <p className="text-sm text-[#666666]">{user.bio || "No bio added."}</p>
+              <p className="text-sm text-[#666666]">{user?.bio || "No bio added."}</p>
             </div>
 
             <div className="bg-white rounded-xl border p-4">
               <h2 className="text-lg font-semibold mb-3">Skills</h2>
               <div className="flex flex-wrap gap-2">
-                {user.skills?.length > 0 ? (
+                {user?.skills?.length > 0 ? (
                   user.skills.map((skill, index) => (
                     <span
                       key={index}
