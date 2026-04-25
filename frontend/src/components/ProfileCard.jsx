@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import EditProfileModal from "./EditProfileModal";
 import FollowersFollowingModal from "./FollowersFollowingModal";
-import FollowButton from "./FollowButton";
 import axios from "axios";
 import { initSocket, onConnectionUpdate, onFollowRequest } from "../utils/socketClient";
 
@@ -11,7 +10,6 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
   const [showFollowersModal, setShowFollowersModal] = useState(false);
   const [newSkill, setNewSkill] = useState("");
   const [loadingSkill, setLoadingSkill] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
@@ -21,13 +19,6 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
   const bannerInputRef = useRef(null);
   const avatarInputRef = useRef(null);
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-
-  useEffect(() => {
-    if (!isOwner && user) {
-      const following = user.followers?.some((id) => String(id) === String(currentUser._id));
-      setIsFollowing(Boolean(following));
-    }
-  }, [user, isOwner, currentUser._id]);
 
   useEffect(() => {
     if (!currentUser?._id) return;
@@ -172,10 +163,13 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
       ? { backgroundImage: `url(${user.bannerImage})` }
       : { backgroundImage: "linear-gradient(135deg, #0A66C2 0%, #004182 100%)" };
 
+  // ✅ Check if this is the current user's profile
+  const isCurrentUser = String(user?._id) === String(currentUser?._id);
+
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden">
       <div className="relative h-40 bg-cover bg-center" style={getBannerStyle()}>
-        {isOwner && (
+        {isCurrentUser && (
           <div className="absolute right-3 top-3 flex gap-2">
             <button
               type="button"
@@ -205,7 +199,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
             alt="profile"
             className="w-24 h-24 rounded-full border-4 border-white object-cover bg-gray-100"
           />
-          {isOwner && (
+          {isCurrentUser && (
             <div className="absolute bottom-0 right-0">
               <button
                 type="button"
@@ -251,7 +245,8 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
           )}
         </div>
 
-        {isOwner ? (
+        {/* ✅ ONLY SHOW EDIT BUTTON FOR CURRENT USER - NO FOLLOW BUTTON */}
+        {isCurrentUser && (
           <button
             type="button"
             onClick={() => setIsOpen(true)}
@@ -259,15 +254,6 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
           >
             Edit Profile
           </button>
-        ) : (
-          <FollowButton
-            user={user}
-            isFollowing={isFollowing}
-            onFollowChange={(following) => {
-              setIsFollowing(following);
-              refreshProfile();
-            }}
-          />
         )}
       </div>
 
@@ -304,7 +290,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
         <div className="mt-4 border-t pt-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-sm">Skills</h3>
-            {isOwner && (
+            {isCurrentUser && (
               <button
                 onClick={() => document.getElementById("skillsInput")?.focus()}
                 className="text-xs text-blue-600 hover:text-blue-700 font-medium"
@@ -322,21 +308,21 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
                   className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2 border border-blue-200"
                 >
                   <span>{skill}</span>
-                  {isOwner && (
+                  {isCurrentUser && (
                     <button onClick={() => handleRemoveSkill(skill)} className="hover:text-red-600 font-bold ml-1">
-                      x
+                      ✕
                     </button>
                   )}
                 </div>
               ))
             ) : (
               <p className="text-sm text-gray-500">
-                {isOwner ? "Add your skills to highlight your expertise" : "No skills yet"}
+                {isCurrentUser ? "Add your skills to highlight your expertise" : "No skills yet"}
               </p>
             )}
           </div>
 
-          {isOwner && (
+          {isCurrentUser && (
             <div className="flex gap-2">
               <input
                 id="skillsInput"
@@ -389,6 +375,7 @@ function ProfileCard({ user, refreshProfile, isOwner }) {
         userId={user?._id}
         isOpen={showFollowersModal}
         onClose={() => setShowFollowersModal(false)}
+        onUpdate={refreshProfile}
       />
     </div>
   );
