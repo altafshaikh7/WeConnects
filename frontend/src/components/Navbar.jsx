@@ -13,7 +13,6 @@ import {
   Settings,
 } from "lucide-react";
 import axios from "axios";
-import Logo from "./Logo";
 import { initSocket, onReceiveNotification } from "../utils/socketClient";
 
 function Navbar() {
@@ -171,7 +170,7 @@ function Navbar() {
           </button>
         </div>
 
-        {/* CENTER - Search Bar (Fixed Size) */}
+        {/* CENTER - Search Bar */}
         <div ref={searchRef} className="hidden md:block flex-1 max-w-sm mx-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -259,6 +258,7 @@ function Navbar() {
             )}
           </button>
 
+          {/* Profile Dropdown */}
           <div ref={profileDropdownRef} className="relative">
             <button
               type="button"
@@ -272,31 +272,59 @@ function Navbar() {
             </button>
 
             {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg z-50">
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50 overflow-hidden">
+                {/* User Info Section */}
+                <div className="p-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src={getProfileImage()} 
+                      alt="profile" 
+                      className="h-10 w-10 rounded-full object-cover" 
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{user?.name || "User"}</p>
+                      <p className="text-xs text-gray-500">{user?.headline || "View your profile"}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Menu Items */}
                 <button
                   type="button"
-                  onClick={() => navigate("/profile")}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    navigate("/profile");
+                    setShowProfileDropdown(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
                 >
-                  <User size={15} />
+                  <User size={16} />
                   View Profile
                 </button>
+                
                 <button
                   type="button"
-                  onClick={() => navigate("/profile")}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  onClick={() => {
+                    navigate("/settings");
+                    setShowProfileDropdown(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
                 >
-                  <Settings size={15} />
-                  Settings
+                  <Settings size={16} />
+                  Settings & Privacy
                 </button>
-                <div className="border-t my-1"></div>
+                
+                <div className="border-t border-gray-100 my-1"></div>
+                
                 <button
                   type="button"
-                  onClick={logout}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                  onClick={() => {
+                    logout();
+                    setShowProfileDropdown(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
                 >
-                  <LogOut size={15} />
-                  Logout
+                  <LogOut size={16} />
+                  Sign out
                 </button>
               </div>
             )}
@@ -366,11 +394,26 @@ function Navbar() {
               Profile
             </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                navigate("/settings");
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Settings size={18} />
+              Settings
+            </button>
+
             <div className="border-t my-2"></div>
 
             <button
               type="button"
-              onClick={logout}
+              onClick={() => {
+                logout();
+                setOpen(false);
+              }}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
             >
               <LogOut size={18} />
