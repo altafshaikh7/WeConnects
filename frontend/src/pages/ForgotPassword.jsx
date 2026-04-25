@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import Logo from "../components/Logo";
+import Logo from "../components/logo";
 
 function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -300,7 +300,7 @@ function ForgotPassword() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes slideDown {
           from {
             opacity: 0;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Logo from "../components/Logo";
+import Logo from "../components/logo";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -85,7 +85,7 @@ function Login() {
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-[#0a66c2] mb-8">
-              We Connect
+              We Connects
             </h1>
             
             <div className="w-64 md:w-96 mx-auto relative">
@@ -369,7 +369,7 @@ function Login() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes slideDown {
           from {
             opacity: 0;

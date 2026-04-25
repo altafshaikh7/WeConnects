@@ -1,9 +1,9 @@
-﻿import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { UserPlus, UserCheck, Clock, Users, RefreshCw, Search, X } from "lucide-react";
-import { sendConnectionRequest, initSocket, getSocket } from "../utils/socketClient";
+import { UserPlus, Users, RefreshCw, Search, X } from "lucide-react";
+import { initSocket, onConnectionUpdate, onFollowRequest } from "../utils/socketClient";
 
 function Network() {
   const [users, setUsers] = useState([]);
@@ -11,13 +11,13 @@ function Network() {
   const [actionLoading, setActionLoading] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const navigate = useNavigate();
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/users/suggested`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -25,42 +25,45 @@ function Network() {
       setUsers(res.data || []);
     } catch (err) {
       console.error("Network fetch error:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [API, token]);
 
   useEffect(() => {
     if (currentUser._id) {
       initSocket(currentUser._id);
     }
-    fetchUsers();
-    setLoading(false);
-  }, []);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchUsers();
-    setRefreshing(false);
-  };
+    fetchUsers();
+
+    const unsubscribeFollow = onFollowRequest(() => {
+      fetchUsers();
+    });
+    const unsubscribeConnection = onConnectionUpdate(() => {
+      fetchUsers();
+    });
+
+    return () => {
+      unsubscribeFollow();
+      unsubscribeConnection();
+    };
+  }, [currentUser._id, fetchUsers]);
 
   const handleConnect = async (userId) => {
     setActionLoading(userId);
     try {
-      const res = await axios.post(`${API}/users/${userId}/follow`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const socket = getSocket();
-      if (socket && res.data.followRequest) {
-        sendConnectionRequest(currentUser._id, userId, res.data.followRequest._id);
-      }
+      await axios.post(
+        `${API}/users/${userId}/follow`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       setUsers((prev) =>
-        prev.map((user) =>
-          user._id === userId ? { ...user, requestSent: true } : user
-        )
+        prev.map((user) => (user._id === userId ? { ...user, requestSent: true } : user))
       );
-      
-      alert(`Connection request sent to ${res.data.name || 'user'}`);
+      alert("Connection request sent");
     } catch (err) {
       console.error("Connect request failed:", err);
       alert(err.response?.data?.msg || "Failed to send connection request");
@@ -69,12 +72,12 @@ function Network() {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    String(user._id) !== String(currentUser._id) && (
-      searchTerm === "" || 
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.headline?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+  const filteredUsers = users.filter(
+    (user) =>
+      String(user._id) !== String(currentUser._id) &&
+      (searchTerm === "" ||
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.headline?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -82,14 +85,11 @@ function Network() {
       <Navbar />
       <div className="bg-gray-50 min-h-screen pt-4 sm:pt-6">
         <div className="max-w-7xl mx-auto px-3 sm:px-4">
-          
-          {/* Header - Responsive */}
           <div className="mb-4 sm:mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Network</h1>
             <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">Connect with professionals</p>
           </div>
 
-          {/* Search Bar - Responsive */}
           <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-3 mb-3 sm:mb-4">
             <div className="relative">
               <Search size={16} className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -111,10 +111,12 @@ function Network() {
             </div>
           </div>
 
-          {/* Refresh Button - Responsive */}
           <div className="flex justify-end mb-3 sm:mb-4">
             <button
-              onClick={handleRefresh}
+              onClick={() => {
+                setRefreshing(true);
+                fetchUsers();
+              }}
               disabled={refreshing}
               className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-gray-900"
             >
@@ -123,24 +125,15 @@ function Network() {
             </button>
           </div>
 
-          {/* Users List - Responsive Cards */}
           {loading ? (
             <div className="bg-white rounded-lg border border-gray-200 p-6 sm:p-8 text-center">
-              <div className="inline-block w-6 h-6 sm:w-8 sm:h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+              <div className="inline-block w-6 h-6 sm:w-8 sm:h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
               <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-500">Loading suggestions...</p>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 p-8 sm:p-12 text-center">
               <Users size={32} className="sm:w-10 sm:h-10 mx-auto text-gray-300 mb-2 sm:mb-3" />
               <p className="text-sm sm:text-base text-gray-600">No users found</p>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="mt-2 text-blue-600 text-xs sm:text-sm hover:underline"
-                >
-                  Clear search
-                </button>
-              )}
             </div>
           ) : (
             <div className="space-y-2 sm:space-y-3">
@@ -149,26 +142,27 @@ function Network() {
                   (id) => String(id) === String(currentUser._id)
                 );
                 const hasSentRequest = user.requestSent;
-                
+
                 return (
                   <div
                     key={user._id}
                     className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
-                      {/* Profile Image - Responsive */}
                       <div
                         className="flex-shrink-0 cursor-pointer"
                         onClick={() => navigate(`/profile/${user._id}`)}
                       >
                         <img
-                          src={user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=0A66C2&color=fff&size=48`}
+                          src={
+                            user.profileImage ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || "User")}&background=0A66C2&color=fff&size=48`
+                          }
                           alt={user.name}
                           className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
                         />
                       </div>
-                      
-                      {/* User Info - Responsive Text */}
+
                       <div
                         className="flex-1 min-w-0 cursor-pointer"
                         onClick={() => navigate(`/profile/${user._id}`)}
@@ -186,31 +180,28 @@ function Network() {
                         )}
                       </div>
 
-                      {/* Connect Button - Responsive */}
                       <button
                         onClick={() => handleConnect(user._id)}
                         disabled={actionLoading === user._id || isConnected || hasSentRequest}
-                        className={`
-                          flex-shrink-0 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all
-                          ${isConnected
+                        className={`flex-shrink-0 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
+                          isConnected
                             ? "bg-gray-100 text-gray-500 cursor-default"
                             : hasSentRequest
                             ? "bg-yellow-50 text-yellow-600 cursor-default border border-yellow-200"
                             : actionLoading === user._id
                             ? "bg-gray-200 text-gray-400 cursor-wait"
                             : "bg-blue-600 text-white hover:bg-blue-700 active:scale-95"
-                          }
-                        `}
+                        }`}
                       >
                         {actionLoading === user._id ? (
                           <span className="flex items-center gap-1">
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             <span className="hidden sm:inline">Sending...</span>
                           </span>
                         ) : isConnected ? (
-                          "✓"
+                          "Connected"
                         ) : hasSentRequest ? (
-                          "⏳"
+                          "Pending"
                         ) : (
                           <span className="flex items-center gap-1">
                             <UserPlus size={12} className="sm:w-4 sm:h-4" />
@@ -219,25 +210,13 @@ function Network() {
                         )}
                       </button>
                     </div>
-                    
-                    {/* Bio for mobile - below the card */}
+
                     {user.bio && (
-                      <p className="text-xs text-gray-400 mt-2 line-clamp-2 sm:hidden">
-                        {user.bio}
-                      </p>
+                      <p className="text-xs text-gray-400 mt-2 line-clamp-2 sm:hidden">{user.bio}</p>
                     )}
                   </div>
                 );
               })}
-            </div>
-          )}
-          
-          {/* Results Count - Responsive */}
-          {!loading && filteredUsers.length > 0 && (
-            <div className="mt-4 sm:mt-6 text-center">
-              <p className="text-xs text-gray-500">
-                Showing {filteredUsers.length} of {users.length} suggestions
-              </p>
             </div>
           )}
         </div>

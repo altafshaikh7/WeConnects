@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import Logo from "../components/Logo";
+import Logo from "../components/logo";
 
 function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -321,7 +321,7 @@ function ResetPassword() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes slideDown {
           from {
             opacity: 0;

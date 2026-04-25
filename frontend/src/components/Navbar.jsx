@@ -1,9 +1,20 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Home, Users, Search, Bell, LogOut, MessageCircle, User, Settings } from "lucide-react";
-import Logo from "./logo";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  Menu,
+  X,
+  Home,
+  Users,
+  Search,
+  Bell,
+  LogOut,
+  MessageCircle,
+  User,
+  Settings,
+} from "lucide-react";
 import axios from "axios";
-import io from "socket.io-client";
+import Logo from "./logo";
+import { initSocket, onReceiveNotification } from "../utils/socketClient";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -22,9 +33,9 @@ function Navbar() {
       return {};
     }
   });
+
   const searchRef = useRef(null);
   const profileDropdownRef = useRef(null);
-
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
 
@@ -34,51 +45,8 @@ function Navbar() {
     { label: "Messages", icon: MessageCircle, path: "/messages" },
   ];
 
-  const isActive = (path) => location.pathname === path;
-
-  // 🔄 Listen for profile update events
-  useEffect(() => {
-    const handleProfileUpdate = (event) => {
-      if (event.detail?.user) {
-        setUser(event.detail.user);
-        localStorage.setItem("user", JSON.stringify(event.detail.user));
-      }
-    };
-
-    window.addEventListener("profileUpdated", handleProfileUpdate);
-    
-    const handleStorageChange = (e) => {
-      if (e.key === "user" && e.newValue) {
-        try {
-          setUser(JSON.parse(e.newValue));
-        } catch (err) {
-          console.error("Error parsing user from storage:", err);
-        }
-      }
-    };
-    
-    window.addEventListener("storage", handleStorageChange);
-    
-    return () => {
-      window.removeEventListener("profileUpdated", handleProfileUpdate);
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
-
-  // Close profile dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
-        setShowProfileDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // 🔔 FETCH UNREAD NOTIFICATION COUNT
-  const fetchUnreadCount = async () => {
-    if (!token || !user._id) return;
+  const fetchUnreadCount = useCallback(async () => {
+    if (!token || !user?._id) return;
     try {
       const res = await axios.get(`${API}/notifications/unread/count`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -87,36 +55,67 @@ function Navbar() {
     } catch (err) {
       console.error("Error fetching unread count:", err);
     }
-  };
+  }, [API, token, user?._id]);
 
-  // 🔔 REAL-TIME NOTIFICATION UPDATES
   useEffect(() => {
-    if (!user._id) return;
+    const handleProfileUpdate = (event) => {
+      if (event.detail?.user) {
+        setUser(event.detail.user);
+        localStorage.setItem("user", JSON.stringify(event.detail.user));
+      }
+    };
+
+    const handleStorageChange = (event) => {
+      if (event.key === "user" && event.newValue) {
+        try {
+          setUser(JSON.parse(event.newValue));
+        } catch (err) {
+          console.error("Error parsing user from storage:", err);
+        }
+      }
+    };
+
+    window.addEventListener("profileUpdated", handleProfileUpdate);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("profileUpdated", handleProfileUpdate);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setShowProfileDropdown(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowResults(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!user?._id) return;
 
     fetchUnreadCount();
+    initSocket(user._id);
 
-    const socket = io("http://localhost:5000", {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-    });
-
-    socket.emit("user_online", user._id);
-
-    socket.on("receive_notification", (notification) => {
+    const unsubscribe = onReceiveNotification(() => {
       setUnreadCount((prev) => prev + 1);
-      console.log("📬 New notification received:", notification);
     });
 
     return () => {
-      socket.disconnect();
+      unsubscribe();
     };
-  }, [user._id, token, API]);
+  }, [fetchUnreadCount, user?._id]);
 
-  // 🔍 SEARCH USERS LIVE
   useEffect(() => {
     const searchUsers = async () => {
-      if (searchQuery.trim() === "") {
+      if (!searchQuery.trim()) {
         setSearchResults([]);
         setShowResults(false);
         return;
@@ -124,14 +123,9 @@ function Navbar() {
 
       setLoading(true);
       try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/search/users?query=${searchQuery}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
+        const response = await axios.get(`${API}/search/users?query=${encodeURIComponent(searchQuery)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (response.data.length === 0) {
           setSearchResults([{ name: "No profile found", notFound: true }]);
@@ -149,221 +143,146 @@ function Navbar() {
 
     const timer = setTimeout(searchUsers, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Close search dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (searchRef.current && !searchRef.current.contains(e.target)) {
-        setShowResults(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSearchResult = (user) => {
-    if (user._id) {
-      navigate(`/profile/${user._id}`);
-      setSearchQuery("");
-      setShowResults(false);
-    }
-  };
+  }, [searchQuery, API, token]);
 
   const logout = () => {
     localStorage.clear();
     navigate("/");
   };
 
-  // Get profile image with fallback
-  const getProfileImage = () => {
-    if (user?.profileImage && user.profileImage !== "https://via.placeholder.com/40") {
-      return user.profileImage;
-    }
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
-  };
+  const getProfileImage = () =>
+    user?.profileImage ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=0A66C2&color=fff`;
 
   return (
-    <div className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 gap-2 sm:gap-4">
+    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
+      <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-3 sm:px-4">
+        <button className="md:hidden" onClick={() => setOpen((prev) => !prev)} type="button">
+          {open ? <X size={22} /> : <Menu size={22} />}
+        </button>
 
-        {/* LEFT - LOGO */}
-        <div className="flex-shrink-0">
+        <button type="button" onClick={() => navigate("/home")} className="shrink-0">
           <Logo />
-        </div>
+        </button>
 
-        {/* CENTER - SEARCH BAR (Only on desktop) */}
-        <div ref={searchRef} className="hidden md:flex flex-1 max-w-md relative">
-          <div className="relative w-full">
-            <div className="flex items-center bg-[#eef3f8] px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-400 transition">
-              <Search size={18} className="text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search profiles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery && setShowResults(true)}
-                className="bg-transparent outline-none text-sm w-full ml-2"
-              />
-              {loading && (
-                <span className="text-xs text-gray-400 animate-spin">⟳</span>
-              )}
-            </div>
+        <div ref={searchRef} className="relative hidden flex-1 md:block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search people"
+            className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+          />
 
-            {/* SEARCH SUGGESTIONS DROPDOWN */}
-            {showResults && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-80 overflow-y-auto z-50">
-                {searchResults.map((result) => (
-                  <div
-                    key={result._id || "no-result"}
-                    onClick={() => handleSearchResult(result)}
-                    className={`px-4 py-3 border-b last:border-b-0 transition ${
-                      result.notFound || result.error
-                        ? "text-gray-500 text-center py-4 cursor-default hover:bg-gray-50"
-                        : "flex items-center gap-3 cursor-pointer hover:bg-blue-50"
-                    }`}
+          {showResults && (
+            <div className="absolute top-full mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+              {loading ? (
+                <p className="px-3 py-2 text-sm text-gray-500">Searching...</p>
+              ) : (
+                searchResults.map((result, index) => (
+                  <button
+                    key={result._id || index}
+                    type="button"
+                    disabled={result.notFound || result.error}
+                    onClick={() => {
+                      if (result._id) {
+                        navigate(`/profile/${result._id}`);
+                        setShowResults(false);
+                        setSearchQuery("");
+                      }
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-gray-50 disabled:cursor-default disabled:hover:bg-white"
                   >
                     {!result.notFound && !result.error && (
-                      <>
-                        <img
-                          src={result.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`}
-                          alt={result.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                          onError={(e) => {
-                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
-                          }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{result.name}</p>
-                          <p className="text-xs text-gray-600 truncate">{result.headline}</p>
-                        </div>
-                      </>
+                      <img
+                        src={
+                          result.profileImage ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || "User")}&background=0A66C2&color=fff`
+                        }
+                        alt={result.name}
+                        className="h-9 w-9 rounded-full object-cover"
+                      />
                     )}
-                    {(result.notFound || result.error) && result.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{result.name}</p>
+                      {!result.notFound && !result.error && (
+                        <p className="text-xs text-gray-500">{result.headline || "Professional"}</p>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
-        {/* RIGHT - NAV ITEMS */}
-        <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-xs sm:text-sm text-gray-600">
+        <nav className="ml-auto hidden items-center gap-1 md:flex">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm ${
+                  active ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
 
-          {/* DESKTOP MENU */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-6">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.path}
-                  onClick={() => {
-                    navigate(item.path);
-                    setOpen(false);
-                  }}
-                  className={`flex flex-col items-center cursor-pointer transition ${
-                    isActive(item.path)
-                      ? "text-black"
-                      : "text-gray-600 hover:text-black"
-                  }`}
-                >
-                  <Icon size={20} />
-                  <span className="text-[10px] mt-1">{item.label}</span>
-                </div>
-              );
-            })}
+          <button
+            type="button"
+            onClick={() => navigate("/notifications")}
+            className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100"
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-500 px-1 text-center text-[10px] font-semibold text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </button>
 
-            <div 
-              onClick={() => {
-                navigate("/notifications");
-                setUnreadCount(0);
-              }}
-              className="flex flex-col items-center cursor-pointer hover:text-black transition relative"
+          <div ref={profileDropdownRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setShowProfileDropdown((prev) => !prev)}
+              className="flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1.5 hover:bg-gray-50"
             >
-              <div className="relative">
-                <Bell size={20} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] mt-1">Notifications</span>
-            </div>
-          </div>
+              <img src={getProfileImage()} alt="profile" className="h-8 w-8 rounded-full object-cover" />
+              <span className="hidden max-w-24 truncate text-sm font-medium text-gray-700 lg:block">
+                {user?.name || "Profile"}
+              </span>
+            </button>
 
-          {/* PROFILE - with dropdown menu */}
-          <div className="relative" ref={profileDropdownRef}>
-            <div
-              className="relative group flex flex-col items-center cursor-pointer"
-              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-            >
-              <img
-                src={getProfileImage()}
-                alt="user"
-                className="w-8 h-8 rounded-full object-cover hover:ring-2 ring-blue-500 transition"
-                onError={(e) => {
-                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
-                }}
-              />
-              <span className="text-xs mt-1 hidden sm:block">Me</span>
-            </div>
-
-            {/* DROPDOWN MENU */}
             {showProfileDropdown && (
-              <div className="absolute top-10 right-0 mt-1 bg-white shadow-lg rounded-xl border border-gray-100 py-2 min-w-[200px] z-50 animate-fadeIn">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={getProfileImage()}
-                      alt="user"
-                      className="w-10 h-10 rounded-full object-cover"
-                      onError={(e) => {
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {user?.name || "User"}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {user?.headline || "View your profile"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
                 <button
-                  onClick={() => {
-                    navigate("/profile");
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  type="button"
+                  onClick={() => navigate("/profile")}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
                 >
                   <User size={16} />
                   View Profile
                 </button>
-
                 <button
-                  onClick={() => {
-                    navigate("/profile");
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  type="button"
+                  onClick={() => navigate("/profile")}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
                 >
                   <Settings size={16} />
-                  Edit Profile
+                  Settings
                 </button>
-
-                <div className="border-t border-gray-100 my-1"></div>
-
                 <button
-                  onClick={() => {
-                    logout();
-                    setShowProfileDropdown(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  type="button"
+                  onClick={logout}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                 >
                   <LogOut size={16} />
                   Logout
@@ -371,129 +290,82 @@ function Navbar() {
               </div>
             )}
           </div>
-
-          {/* MOBILE MENU BUTTON */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setOpen(!open)}
-          >
-            {open ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
+        </nav>
       </div>
 
-      {/* MOBILE MENU */}
       {open && (
-        <div className="md:hidden px-4 pb-4 border-t bg-white animate-slideDown">
-          {/* MOBILE SEARCH */}
-          <div className="mt-3 mb-4">
-            <div className="flex items-center bg-[#eef3f8] px-3 py-2 rounded-lg">
-              <Search size={16} className="text-gray-500" />
-              <input
-                type="text"
-                placeholder="Search profiles..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent outline-none text-sm w-full ml-2"
-              />
-            </div>
+        <div className="border-t border-gray-200 bg-white px-3 py-3 md:hidden">
+          <div className="mb-3 relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search people"
+              className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:outline-none"
+            />
           </div>
 
-          <div className="flex flex-col gap-3 text-sm">
-            {navItems.map((item) => (
-              <span
-                key={item.path}
-                onClick={() => {
-                  navigate(item.path);
-                  setOpen(false);
-                }}
-                className="cursor-pointer hover:text-blue-600 py-1"
-              >
-                {item.label}
-              </span>
-            ))}
-            <span 
+          <div className="space-y-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => {
+                    navigate(item.path);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Icon size={18} />
+                  {item.label}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
               onClick={() => {
                 navigate("/notifications");
                 setOpen(false);
               }}
-              className="cursor-pointer hover:text-blue-600 py-1"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
+              <Bell size={18} />
               Notifications
-            </span>
-
-            <hr />
-
-            <div className="flex items-center gap-3 py-2">
-              <img
-                src={getProfileImage()}
-                alt="user"
-                className="w-10 h-10 rounded-full object-cover"
-                onError={(e) => {
-                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=0A66C2&color=fff&bold=true&size=40`;
-                }}
-              />
-              <div>
-                <p className="font-semibold text-gray-900">{user?.name || "User"}</p>
-                <p className="text-xs text-gray-500">View your profile</p>
-              </div>
-            </div>
+              {unreadCount > 0 && (
+                <span className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
 
             <button
+              type="button"
               onClick={() => {
                 navigate("/profile");
                 setOpen(false);
               }}
-              className="text-left py-2 text-gray-700 hover:text-blue-600"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
-              View Profile
+              <User size={18} />
+              Profile
             </button>
 
             <button
-              onClick={() => {
-                logout();
-                setOpen(false);
-              }}
-              className="text-left py-2 text-red-500 hover:text-red-600"
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
             >
+              <LogOut size={18} />
               Logout
             </button>
           </div>
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        
-        .animate-slideDown {
-          animation: slideDown 0.3s ease-out;
-        }
-      `}</style>
-    </div>
+    </header>
   );
 }
 

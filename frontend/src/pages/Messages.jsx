@@ -1,11 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
-import io from "socket.io-client";
 import Navbar from "../components/Navbar";
-import { Search, X, Send, User, ArrowLeft, MoreVertical, MessageCircle } from "lucide-react";
-
-const SOCKET_URL = "http://localhost:5000";
+import { Search, Send, User, ArrowLeft, MessageCircle } from "lucide-react";
+import {
+  emitSocketEvent,
+  initSocket,
+  onReceiveMessage,
+  onTyping,
+} from "../utils/socketClient";
 
 function Messages() {
   const [conversations, setConversations] = useState([]);
@@ -17,132 +19,79 @@ function Messages() {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [socket, setSocket] = useState(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [error, setError] = useState("");
   const messagesEndRef = useRef(null);
-  const socketRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
   const token = localStorage.getItem("token");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const navigate = useNavigate();
 
-  // Auto scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const upsertConversation = (user, text, incrementUnread = false, time = new Date()) => {
+    if (!user?._id) return;
+
+    setConversations((prev) => {
+      const existing = Array.isArray(prev) ? prev : [];
+      const previousConversation = existing.find((conv) => conv?.user?._id === user._id);
+      const rest = existing.filter((conv) => conv?.user?._id !== user._id);
+
+      return [
+        {
+          user: previousConversation?.user || user,
+          lastMessage: text,
+          lastMessageTime: time,
+          unreadCount: incrementUnread
+            ? (previousConversation?.unreadCount || 0) + 1
+            : previousConversation?.unreadCount || 0,
+        },
+        ...rest,
+      ];
+    });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize Socket.io
   useEffect(() => {
-    if (!currentUser._id || !token) return;
+    if (!currentUser?._id || !token) return;
 
-    try {
-      const newSocket = io(SOCKET_URL, {
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        transports: ['websocket', 'polling']
-      });
+    initSocket(currentUser._id);
 
-      newSocket.on("connect", () => {
-        console.log("Socket connected for messaging ✅");
-        newSocket.emit("user_online", currentUser._id);
-      });
+    const unsubscribeMessage = onReceiveMessage((incomingMessage) => {
+      const senderId = String(incomingMessage.sender?._id || incomingMessage.sender || "");
+      const isCurrentConversation = String(selectedUser?._id || "") === senderId;
+      const senderUser = incomingMessage.sender || { _id: senderId };
 
-      newSocket.on("receive_message", (data) => {
-        setMessages((prev) => {
-          const newMsg = {
-            _id: Date.now(),
-            sender: data.from,
-            text: data.message,
-            createdAt: data.timestamp || new Date(),
-          };
-          return [...prev, newMsg];
-        });
-        setTimeout(scrollToBottom, 100);
-      });
+      upsertConversation(
+        senderUser,
+        incomingMessage.text,
+        !isCurrentConversation,
+        incomingMessage.createdAt || new Date()
+      );
 
-      newSocket.on("user_typing", (data) => {
-        setIsTyping(data.isTyping);
-      });
+      if (isCurrentConversation) {
+        setMessages((prev) => [...prev, incomingMessage]);
+      }
+    });
 
-      newSocket.on("connect_error", (err) => {
-        console.error("Socket connection error:", err);
-      });
-
-      socketRef.current = newSocket;
-      setSocket(newSocket);
-    } catch (err) {
-      console.error("Socket initialization error:", err);
-    }
+    const unsubscribeTyping = onTyping((payload) => {
+      if (String(payload.from || "") === String(selectedUser?._id || "")) {
+        setIsTyping(Boolean(payload.isTyping));
+      }
+    });
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      unsubscribeMessage();
+      unsubscribeTyping();
     };
-  }, [currentUser._id, token]);
+  }, [currentUser?._id, selectedUser?._id, token]);
 
-  // Search users
-  useEffect(() => {
-    if (!token) return;
-
-    const searchUsers = async () => {
-      if (searchQuery.trim() === "") {
-        setSearchResults([]);
-        setShowSearchResults(false);
-        return;
-      }
-
-      try {
-        const res = await axios.get(`${API}/search/users?query=${searchQuery}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 5000,
-        });
-
-        if (res.data && Array.isArray(res.data)) {
-          const conversationUserIds = conversations.map((c) => c.user?._id).filter(Boolean);
-          const filteredUsers = res.data.filter(
-            (user) =>
-              user && 
-              user._id && 
-              !conversationUserIds.includes(user._id) &&
-              user._id !== currentUser._id
-          );
-          setSearchResults(filteredUsers);
-          setShowSearchResults(filteredUsers.length > 0);
-        } else {
-          setSearchResults([]);
-          setShowSearchResults(false);
-        }
-      } catch (err) {
-        console.error("Search error:", err);
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
-    };
-
-    const timer = setTimeout(searchUsers, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, API, token, conversations, currentUser._id]);
-
-  const startNewConversation = (user) => {
-    if (!user || !user._id) return;
-    setSelectedUser(user);
-    setSearchQuery("");
-    setShowSearchResults(false);
-    setError("");
-    if (window.innerWidth < 768) {
-      setShowMobileChat(true);
-    }
-  };
-
-  // Fetch conversations
   useEffect(() => {
     if (!token) return;
 
@@ -154,12 +103,7 @@ function Messages() {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000,
         });
-        
-        if (res.data && Array.isArray(res.data)) {
-          setConversations(res.data);
-        } else {
-          setConversations([]);
-        }
+        setConversations(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
         console.error("Failed to fetch conversations:", err);
         setError("Failed to load conversations");
@@ -171,7 +115,39 @@ function Messages() {
     fetchConversations();
   }, [API, token]);
 
-  // Fetch messages when user is selected
+  useEffect(() => {
+    if (!token) return;
+
+    const searchUsers = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        setShowSearchResults(false);
+        return;
+      }
+
+      try {
+        const res = await axios.get(`${API}/search/users?query=${encodeURIComponent(searchQuery)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000,
+        });
+        const data = Array.isArray(res.data) ? res.data : [];
+        const conversationUserIds = conversations.map((c) => c.user?._id).filter(Boolean);
+        const filteredUsers = data.filter(
+          (user) => user?._id && !conversationUserIds.includes(user._id) && user._id !== currentUser._id
+        );
+        setSearchResults(filteredUsers);
+        setShowSearchResults(filteredUsers.length > 0);
+      } catch (err) {
+        console.error("Search error:", err);
+        setSearchResults([]);
+        setShowSearchResults(false);
+      }
+    };
+
+    const timer = setTimeout(searchUsers, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, conversations, API, token, currentUser._id]);
+
   useEffect(() => {
     if (!selectedUser?._id || !token) return;
 
@@ -182,23 +158,21 @@ function Messages() {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000,
         });
-        
-        if (res.data && Array.isArray(res.data)) {
-          setMessages(res.data);
-        } else {
-          setMessages([]);
-        }
+        setMessages(Array.isArray(res.data) ? res.data : []);
 
-        // Mark as read
-        try {
-          await axios.put(
-            `${API}/messages/read-all/${selectedUser._id}`,
-            {},
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-        } catch (err) {
-          console.error("Failed to mark messages as read:", err);
-        }
+        await axios.put(
+          `${API}/messages/read-all/${selectedUser._id}`,
+          {},
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            timeout: 10000,
+          }
+        );
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv?.user?._id === selectedUser._id ? { ...conv, unreadCount: 0 } : conv
+          )
+        );
       } catch (err) {
         console.error("Failed to fetch messages:", err);
         setError("Failed to load messages");
@@ -206,71 +180,71 @@ function Messages() {
     };
 
     fetchMessages();
-  }, [selectedUser, API, token]);
+  }, [selectedUser?._id, API, token]);
 
-  // Send message
+  const startNewConversation = (user) => {
+    if (!user?._id) return;
+    setSelectedUser(user);
+    setSearchQuery("");
+    setShowSearchResults(false);
+    setError("");
+    if (window.innerWidth < 768) {
+      setShowMobileChat(true);
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
-
-    if (!messageText.trim() || !selectedUser) return;
+    if (!messageText.trim() || !selectedUser?._id) return;
 
     try {
       const res = await axios.post(
         `${API}/messages/send`,
-        {
-          recipientId: selectedUser._id,
-          text: messageText,
-        },
+        { recipientId: selectedUser._id, text: messageText },
         {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000,
         }
       );
 
-      if (res.data && res.data._id) {
-        setMessages((prev) => [...prev, res.data]);
-        setMessageText("");
-        setTimeout(scrollToBottom, 100);
+      const sentMessage = res.data?.message;
+      if (!sentMessage?._id) return;
 
-        if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit("send_message", {
-            to: selectedUser._id,
-            message: messageText,
-          });
-        }
-      }
+      setMessages((prev) => [...prev, sentMessage]);
+      upsertConversation(selectedUser, sentMessage.text, false, sentMessage.createdAt || new Date());
+      setMessageText("");
+      setIsTyping(false);
+
     } catch (err) {
       console.error("Failed to send message:", err);
       alert("Failed to send message");
     }
   };
 
-  // Handle typing
-  const handleTyping = () => {
-    if (socketRef.current && socketRef.current.connected && selectedUser) {
-      socketRef.current.emit("typing", {
-        to: selectedUser._id,
-        isTyping: true,
-      });
+  const handleTyping = (nextValue) => {
+    setMessageText(nextValue);
 
-      setTimeout(() => {
-        if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit("typing", {
-            to: selectedUser._id,
-            isTyping: false,
-          });
-        }
-      }, 2000);
+    if (!selectedUser?._id) return;
+
+    emitSocketEvent("typing", {
+      to: selectedUser._id,
+      isTyping: true,
+    });
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
     }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      emitSocketEvent("typing", {
+        to: selectedUser._id,
+        isTyping: false,
+      });
+    }, 1200);
   };
 
-  const handleBackToList = () => {
-    setShowMobileChat(false);
-  };
-
-  // Filter conversations safely
-  const filteredConversations = Array.isArray(conversations) 
-    ? conversations.filter((conv) => 
+  const filteredConversations = Array.isArray(conversations)
+    ? conversations.filter((conv) =>
         conv?.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : [];
@@ -281,7 +255,7 @@ function Messages() {
         <Navbar />
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
-            <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+            <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
             <p className="mt-2 text-sm text-gray-500">Loading messages...</p>
           </div>
         </div>
@@ -296,12 +270,11 @@ function Messages() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-6">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="flex flex-col md:flex-row h-[calc(100vh-100px)]">
-            
-            {/* Conversations List */}
-            <div className={`
-              w-full md:w-80 lg:w-96 border-r border-gray-200 flex flex-col
-              ${showMobileChat ? 'hidden md:flex' : 'flex'}
-            `}>
+            <div
+              className={`w-full md:w-80 lg:w-96 border-r border-gray-200 flex flex-col ${
+                showMobileChat ? "hidden md:flex" : "flex"
+              }`}
+            >
               <div className="p-3 sm:p-4 border-b border-gray-200 bg-white">
                 <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Messages</h2>
                 <div className="relative">
@@ -314,7 +287,7 @@ function Messages() {
                     onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
-                  
+
                   {showSearchResults && searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
                       <div className="p-2">
@@ -326,13 +299,18 @@ function Messages() {
                             className="w-full flex items-center gap-2 px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors text-left"
                           >
                             <img
-                              src={user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=0A66C2&color=fff`}
+                              src={
+                                user.profileImage ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || "User")}&background=0A66C2&color=fff`
+                              }
                               alt={user.name}
                               className="w-8 h-8 rounded-full object-cover"
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                              <p className="text-xs text-gray-500 truncate">{user.headline || "Professional"}</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {user.headline || "Professional"}
+                              </p>
                             </div>
                           </button>
                         ))}
@@ -352,7 +330,7 @@ function Messages() {
                 ) : (
                   filteredConversations.map((conv) => (
                     <button
-                      key={conv.user?._id || Math.random()}
+                      key={conv.user?._id}
                       onClick={() => {
                         setSelectedUser(conv.user);
                         setError("");
@@ -361,11 +339,14 @@ function Messages() {
                         }
                       }}
                       className={`w-full px-3 sm:px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left flex items-center gap-3 ${
-                        selectedUser?._id === conv.user?._id ? 'bg-blue-50' : ''
+                        selectedUser?._id === conv.user?._id ? "bg-blue-50" : ""
                       }`}
                     >
                       <img
-                        src={conv.user?.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.user?.name || 'User')}&background=0A66C2&color=fff`}
+                        src={
+                          conv.user?.profileImage ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.user?.name || "User")}&background=0A66C2&color=fff`
+                        }
                         alt={conv.user?.name}
                         className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
                       />
@@ -379,7 +360,7 @@ function Messages() {
                       </div>
                       {conv.unreadCount > 0 && (
                         <span className="bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full min-w-[20px] text-center">
-                          {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                          {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
                         </span>
                       )}
                     </button>
@@ -388,23 +369,22 @@ function Messages() {
               </div>
             </div>
 
-            {/* Chat Window */}
-            <div className={`
-              flex-1 flex flex-col bg-gray-50
-              ${showMobileChat ? 'flex' : 'hidden md:flex'}
-            `}>
+            <div className={`flex-1 flex flex-col bg-gray-50 ${showMobileChat ? "flex" : "hidden md:flex"}`}>
               {selectedUser ? (
                 <>
                   <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <button
-                        onClick={handleBackToList}
+                        onClick={() => setShowMobileChat(false)}
                         className="md:hidden p-1 hover:bg-gray-100 rounded-lg"
                       >
                         <ArrowLeft size={20} className="text-gray-600" />
                       </button>
                       <img
-                        src={selectedUser.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedUser.name || 'User')}&background=0A66C2&color=fff`}
+                        src={
+                          selectedUser.profileImage ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedUser.name || "User")}&background=0A66C2&color=fff`
+                        }
                         alt={selectedUser.name}
                         className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
                       />
@@ -412,9 +392,7 @@ function Messages() {
                         <p className="font-semibold text-sm sm:text-base text-gray-900">
                           {selectedUser.name}
                         </p>
-                        {isTyping && (
-                          <p className="text-xs text-blue-600">Typing...</p>
-                        )}
+                        {isTyping && <p className="text-xs text-blue-600">Typing...</p>}
                       </div>
                     </div>
                   </div>
@@ -432,31 +410,26 @@ function Messages() {
                       messages.map((msg, idx) => {
                         const isOwn = String(msg.sender?._id || msg.sender) === String(currentUser._id);
                         return (
-                          <div
-                            key={msg._id || idx}
-                            className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div className={`max-w-[85%] sm:max-w-[70%] ${isOwn ? 'order-1' : 'order-2'}`}>
+                          <div key={msg._id || idx} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[85%] sm:max-w-[70%] ${isOwn ? "order-1" : "order-2"}`}>
                               <div
                                 className={`px-3 py-2 rounded-lg ${
                                   isOwn
-                                    ? 'bg-blue-600 text-white rounded-br-none'
-                                    : 'bg-white text-gray-900 rounded-bl-none border border-gray-200'
+                                    ? "bg-blue-600 text-white rounded-br-none"
+                                    : "bg-white text-gray-900 rounded-bl-none border border-gray-200"
                                 }`}
                               >
                                 <p className="text-sm break-words">{msg.text}</p>
                               </div>
-                              <p className={`text-xs mt-1 ${isOwn ? 'text-right text-gray-500' : 'text-left text-gray-400'}`}>
-                                {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
+                              <p className={`text-xs mt-1 ${isOwn ? "text-right text-gray-500" : "text-left text-gray-400"}`}>
+                                {msg.createdAt
+                                  ? new Date(msg.createdAt).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "Just now"}
                               </p>
                             </div>
-                            {!isOwn && (
-                              <img
-                                src={selectedUser.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedUser.name)}&background=0A66C2&color=fff`}
-                                alt=""
-                                className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover order-1 mr-2 self-end"
-                              />
-                            )}
                           </div>
                         );
                       })
@@ -469,10 +442,7 @@ function Messages() {
                       <input
                         type="text"
                         value={messageText}
-                        onChange={(e) => {
-                          setMessageText(e.target.value);
-                          handleTyping();
-                        }}
+                        onChange={(e) => handleTyping(e.target.value)}
                         placeholder="Type a message..."
                         className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
@@ -498,6 +468,7 @@ function Messages() {
             </div>
           </div>
         </div>
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </div>
     </div>
   );

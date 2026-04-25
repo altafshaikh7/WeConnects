@@ -1,28 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import UnfollowModal from "./UnfollowModal";
-import { UserPlus, UserMinus, Clock, UserCheck } from "lucide-react";
+import { UserPlus, Clock, UserCheck } from "lucide-react";
 
 function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = false }) {
-  // ✅✅✅ CRITICAL FIX - Sabse pehle current user check
-  const currentUser = JSON.parse(localStorage.getItem("user")) || { _id: "", name: "", email: "" };
-  
-  // Agar current user hi hai toh button return hi mat karo
-  if (String(user?._id) === String(currentUser?._id)) {
-    console.log("🔴 FollowButton: Own profile - hiding button");
-    return null;
-  }
-  
-  // Agar name same hai toh bhi return null
-  if (user?.name === currentUser?.name) {
-    console.log("🔴 FollowButton: Same name - hiding button");
-    return null;
-  }
-
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [loading, setLoading] = useState(false);
   const [showUnfollowModal, setShowUnfollowModal] = useState(false);
   const [followStatus, setFollowStatus] = useState(isFollowing ? "following" : "not-following");
   const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000/api";
+
+  useEffect(() => {
+    setFollowStatus(isFollowing ? "following" : "not-following");
+  }, [isFollowing]);
+
+  if (String(user?._id) === String(currentUser?._id) || isMutualFollower) {
+    return null;
+  }
 
   const getAuthHeader = () => {
     const token = localStorage.getItem("token");
@@ -32,41 +26,22 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
   const handleFollow = async () => {
     setLoading(true);
     setFollowStatus("pending");
-    
+
     try {
       const response = await axios.post(
-        `${API}/users/${user._id}/follow`, 
+        `${API}/users/${user._id}/follow`,
         {},
         { headers: getAuthHeader() }
       );
-      
-      if (response.data.status === "accepted" || response.data.isFollowing) {
-        setFollowStatus("following");
-        if (window.toast) {
-          window.toast.success(`You are now following ${user.name}`);
-        } else {
-          alert(`You are now following ${user.name} ✅`);
-        }
-      } else {
-        setFollowStatus("pending");
-        if (window.toast) {
-          window.toast.success(`Follow request sent to ${user.name}`);
-        } else {
-          alert(`Follow request sent to ${user.name} ✅`);
-        }
-      }
-      
-      if (onFollowChange) {
-        onFollowChange(true);
-      }
+
+      const nextStatus = response.data?.status === "accepted" ? "following" : "pending";
+      setFollowStatus(nextStatus);
+      onFollowChange?.(nextStatus === "following");
+      alert(nextStatus === "following" ? `You are now following ${user.name}` : `Follow request sent to ${user.name}`);
     } catch (err) {
       console.error("Follow failed:", err);
       setFollowStatus(isFollowing ? "following" : "not-following");
-      if (window.toast) {
-        window.toast.error(err.response?.data?.msg || "Failed to send follow request");
-      } else {
-        alert(err.response?.data?.msg || "Failed to send follow request");
-      }
+      alert(err.response?.data?.msg || "Failed to send follow request");
     } finally {
       setLoading(false);
     }
@@ -76,39 +51,22 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
     setLoading(true);
     try {
       await axios.post(
-        `${API}/users/${userId}/unfollow`, 
+        `${API}/users/${userId}/unfollow`,
         {},
         { headers: getAuthHeader() }
       );
-      
+
       setFollowStatus("not-following");
-      
-      if (window.toast) {
-        window.toast.success(`Unfollowed ${user.name}`);
-      } else {
-        alert(`Unfollowed ${user.name} ✅`);
-      }
-      
       setShowUnfollowModal(false);
-      
-      if (onFollowChange) {
-        onFollowChange(false);
-      }
+      onFollowChange?.(false);
+      alert(`Unfollowed ${user.name}`);
     } catch (err) {
       console.error("Unfollow failed:", err);
-      if (window.toast) {
-        window.toast.error(err.response?.data?.msg || "Failed to unfollow");
-      } else {
-        alert("Failed to unfollow");
-      }
+      alert(err.response?.data?.msg || "Failed to unfollow");
     } finally {
       setLoading(false);
     }
   };
-
-  if (isMutualFollower) {
-    return null;
-  }
 
   const getButtonConfig = () => {
     switch (followStatus) {
@@ -116,19 +74,19 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         return {
           text: "Following",
           icon: <UserCheck size={16} className="sm:w-[18px] sm:h-[18px]" />,
-          className: "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          className: "bg-gray-200 text-gray-700 hover:bg-gray-300",
         };
       case "pending":
         return {
           text: "Pending",
           icon: <Clock size={16} className="sm:w-[18px] sm:h-[18px]" />,
-          className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-wait"
+          className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-wait",
         };
       default:
         return {
           text: loading ? "..." : "Follow",
           icon: <UserPlus size={16} className="sm:w-[18px] sm:h-[18px]" />,
-          className: "bg-blue-500 text-white hover:bg-blue-600"
+          className: "bg-blue-500 text-white hover:bg-blue-600",
         };
     }
   };
@@ -141,17 +99,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         <button
           onClick={() => setShowUnfollowModal(true)}
           disabled={loading}
-          className={`
-            flex items-center gap-1 sm:gap-2
-            px-2 py-1 text-xs
-            sm:px-4 sm:py-2 sm:text-sm
-            rounded-lg font-medium
-            transition-all duration-200
-            disabled:opacity-50 disabled:cursor-not-allowed
-            whitespace-nowrap
-            hover:scale-105
-            ${buttonConfig.className}
-          `}
+          className={`flex items-center gap-1 sm:gap-2 px-2 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap hover:scale-105 ${buttonConfig.className}`}
           title="Click to unfollow"
         >
           {buttonConfig.icon}
@@ -173,17 +121,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
     <button
       onClick={followStatus === "pending" ? undefined : handleFollow}
       disabled={loading || followStatus === "pending"}
-      className={`
-        flex items-center gap-1 sm:gap-2
-        px-2 py-1 text-xs
-        sm:px-4 sm:py-2 sm:text-sm
-        rounded-lg font-medium
-        transition-all duration-200
-        disabled:opacity-50 disabled:cursor-not-allowed
-        whitespace-nowrap
-        hover:scale-105
-        ${buttonConfig.className}
-      `}
+      className={`flex items-center gap-1 sm:gap-2 px-2 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap hover:scale-105 ${buttonConfig.className}`}
       title={followStatus === "pending" ? "Request pending" : "Click to follow"}
     >
       {buttonConfig.icon}

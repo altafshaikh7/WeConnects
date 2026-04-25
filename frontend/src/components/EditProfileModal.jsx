@@ -228,7 +228,7 @@ function EditProfileModal({ isOpen, onClose, onSave, user }) {
 
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

@@ -140,8 +140,7 @@ function Profile() {
                       return (
                         <div
                           key={post._id}
-                          onClick={() => navigate(`/post/${post._id}`)}
-                          className="group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer aspect-square"
+                          className="group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow aspect-square"
                         >
                           {allImages.length > 0 ? (
                             <img
@@ -192,6 +191,20 @@ function Profile() {
             <div className="bg-white rounded-xl border p-4">
               <h2 className="text-lg font-semibold mb-3">About</h2>
               <p className="text-sm text-[#666666]">{user?.bio || "No bio added."}</p>
+            </div>
+
+            <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-lg font-semibold mb-3">Connections</h2>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-2xl font-semibold text-gray-900">{user?.followers?.length || 0}</p>
+                  <p className="text-gray-500">Followers</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-2xl font-semibold text-gray-900">{user?.following?.length || 0}</p>
+                  <p className="text-gray-500">Following</p>
+                </div>
+              </div>
             </div>
 
             <div className="bg-white rounded-xl border p-4">

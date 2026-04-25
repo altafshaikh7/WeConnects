@@ -42,7 +42,7 @@ function GoogleSuccess() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes loadingLine {
           0% {
             transform: translateX(-100%);

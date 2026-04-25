@@ -5,7 +5,6 @@ import Navbar from "../components/Navbar";
 import {
   initSocket,
   onReceiveNotification,
-  disconnectSocket,
 } from "../utils/socketClient";
 import { 
   X, 
@@ -173,6 +172,8 @@ const Notifications = () => {
 
   // Initialize socket and fetch data on component mount
   useEffect(() => {
+    let unsubscribe = () => {};
+
     console.log("=== NOTIFICATIONS PAGE LOADED ===");
     console.log("Token exists:", !!token);
     console.log("User exists:", !!currentUser?._id);
@@ -189,9 +190,12 @@ const Notifications = () => {
           console.log("Initializing Socket.io for user:", currentUser._id);
           initSocket(currentUser._id);
           
-          onReceiveNotification((newNotification) => {
+          unsubscribe = onReceiveNotification((newNotification) => {
             console.log("New notification received:", newNotification);
-            setNotifications((prev) => [newNotification, ...prev]);
+            setNotifications((prev) => {
+              const exists = prev.some((item) => item._id === newNotification._id);
+              return exists ? prev : [newNotification, ...prev];
+            });
             if (!newNotification.read) {
               setUnreadCount((prev) => prev + 1);
             }
@@ -207,14 +211,9 @@ const Notifications = () => {
     }
 
     return () => {
-      console.log("Cleaning up notifications component");
-      try {
-        disconnectSocket();
-      } catch (err) {
-        console.error("Socket disconnect error:", err);
-      }
+      unsubscribe();
     };
-  }, []); // Empty dependency array - run only once
+  }, [currentUser?._id, fetchNotifications, getUnreadCount, token]);
 
   const getNotificationIcon = (type) => {
     const icons = {
@@ -224,6 +223,7 @@ const Notifications = () => {
       skill_added: <Star size={20} />,
       post_liked: <ThumbsUp size={20} />,
       comment_added: <MessageCircle size={20} />,
+      message_received: <MessageCircle size={20} />,
     };
     return icons[type] || <Bell size={20} />;
   };
@@ -236,6 +236,7 @@ const Notifications = () => {
       skill_added: "text-purple-600 bg-purple-100",
       post_liked: "text-pink-600 bg-pink-100",
       comment_added: "text-yellow-600 bg-yellow-100",
+      message_received: "text-indigo-600 bg-indigo-100",
     };
     return colors[type] || "text-gray-600 bg-gray-100";
   };

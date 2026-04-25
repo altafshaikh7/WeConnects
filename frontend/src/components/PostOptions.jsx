@@ -82,8 +82,8 @@ const PostOptions = ({ post, onDelete, currentUserId, onUnfollow, onCopyLink }) 
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${API}/users/unfollow`,
-        { userId: userId },
+        `${API}/users/${userId}/unfollow`,
+        {},
         {
           headers: { Authorization: `Bearer ${token}` },
         }
