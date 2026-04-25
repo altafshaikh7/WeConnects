@@ -76,7 +76,6 @@ const Notifications = () => {
       let errorMsg = "Failed to load notifications.";
       if (err.response?.status === 401) {
         errorMsg = "Session expired. Please login again.";
-        // Clear invalid token
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         setTimeout(() => navigate("/"), 2000);
@@ -170,6 +169,53 @@ const Notifications = () => {
     }
   }, [API, token, getUnreadCount]);
 
+  // Accept connection request
+  const handleAcceptRequest = async (notification) => {
+    try {
+      await axios.post(`${API}/users/requests/${notification.relatedRequest}/accept`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Mark notification as read
+      await axios.put(`${API}/notifications/${notification._id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      alert("Connection request accepted!");
+      fetchNotifications();
+      getUnreadCount();
+      
+      // Dispatch event to update UI (navbar, profile, etc.)
+      window.dispatchEvent(new CustomEvent("profileUpdated"));
+      
+    } catch (err) {
+      console.error("Accept failed:", err);
+      alert(err.response?.data?.msg || "Failed to accept request");
+    }
+  };
+
+  // Reject connection request
+  const handleRejectRequest = async (notification) => {
+    try {
+      await axios.post(`${API}/users/requests/${notification.relatedRequest}/reject`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Mark notification as read
+      await axios.put(`${API}/notifications/${notification._id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      alert("Request rejected");
+      fetchNotifications();
+      getUnreadCount();
+      
+    } catch (err) {
+      console.error("Reject failed:", err);
+      alert(err.response?.data?.msg || "Failed to reject request");
+    }
+  };
+
   // Initialize socket and fetch data on component mount
   useEffect(() => {
     let unsubscribe = () => {};
@@ -211,7 +257,7 @@ const Notifications = () => {
     }
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, [currentUser?._id, fetchNotifications, getUnreadCount, token]);
 
@@ -490,7 +536,6 @@ const Notifications = () => {
                               notification.sender.profileImage ||
                               `https://ui-avatars.com/api/?name=${encodeURIComponent(notification.sender.name || 'User')}&background=0A66C2&color=fff&bold=true`
                             }
-                            alt={notification.sender.name}
                             className="w-10 h-10 rounded-full object-cover cursor-pointer hover:ring-2 ring-[#0A66C2] transition-all"
                             onError={(e) => {
                               e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(notification.sender?.name || 'User')}&background=0A66C2&color=fff&bold=true`;
@@ -518,11 +563,31 @@ const Notifications = () => {
                       <p className="text-gray-700 text-sm leading-relaxed">
                         {notification.message}
                       </p>
+
+                      {/* ✅ ACCEPT/DECLINE BUTTONS FOR CONNECTION REQUESTS */}
+                      {notification.type === "connection_request" && notification.relatedRequest && (
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => handleAcceptRequest(notification)}
+                            className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-full hover:bg-blue-700 transition flex items-center gap-1"
+                          >
+                            <Check size={14} />
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(notification)}
+                            className="px-4 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-full hover:bg-gray-300 transition flex items-center gap-1"
+                          >
+                            <X size={14} />
+                            Decline
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!notification.read && (
+                      {!notification.read && notification.type !== "connection_request" && (
                         <button
                           onClick={() => markAsRead(notification._id)}
                           title="Mark as read"

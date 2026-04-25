@@ -170,8 +170,8 @@ function Navbar() {
           </button>
         </div>
 
-        {/* CENTER - Search Bar */}
-        <div ref={searchRef} className="hidden md:block flex-1 max-w-sm mx-4">
+        {/* CENTER - Search Bar with proper positioning */}
+        <div className="hidden md:block flex-1 max-w-md mx-4 relative" ref={searchRef}>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -183,10 +183,17 @@ function Navbar() {
             />
           </div>
 
+          {/* Search Results Dropdown - Positioned relative to search bar */}
           {showResults && (
-            <div className="absolute left-0 right-0 top-full mt-2 max-w-sm rounded-xl border border-gray-200 bg-white p-2 shadow-lg z-50">
+            <div className="absolute left-0 right-0 top-full mt-2 rounded-xl border border-gray-200 bg-white shadow-lg z-[100] max-h-80 overflow-y-auto">
               {loading ? (
-                <p className="px-3 py-2 text-sm text-gray-500">Searching...</p>
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  <p>No users found</p>
+                </div>
               ) : (
                 searchResults.map((result, index) => (
                   <button
@@ -200,24 +207,31 @@ function Navbar() {
                         setSearchQuery("");
                       }
                     }}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-gray-50 disabled:cursor-default"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
                   >
                     {!result.notFound && !result.error && (
-                      <img
-                        src={
-                          result.profileImage ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || "User")}&background=0A66C2&color=fff`
-                        }
-                        alt={result.name}
-                        className="h-8 w-8 rounded-full object-cover"
-                      />
+                      <>
+                        <img
+                          src={
+                            result.profileImage ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || "User")}&background=0A66C2&color=fff&size=40`
+                          }
+                          alt={result.name}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {result.name}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {result.headline || "Professional"}
+                          </p>
+                        </div>
+                      </>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{result.name}</p>
-                      {!result.notFound && !result.error && (
-                        <p className="text-xs text-gray-500 truncate">{result.headline || "Professional"}</p>
-                      )}
-                    </div>
+                    {(result.notFound || result.error) && (
+                      <p className="text-sm text-gray-500 w-full text-center">{result.name}</p>
+                    )}
                   </button>
                 ))
               )}
@@ -235,7 +249,7 @@ function Navbar() {
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`hidden md:flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
+                className={`hidden md:flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-all ${
                   active ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
@@ -248,7 +262,7 @@ function Navbar() {
           <button
             type="button"
             onClick={() => navigate("/notifications")}
-            className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100"
+            className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 transition-all"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
@@ -263,7 +277,7 @@ function Navbar() {
             <button
               type="button"
               onClick={() => setShowProfileDropdown((prev) => !prev)}
-              className="flex items-center gap-1 rounded-full border border-gray-200 px-2 py-1 hover:bg-gray-50"
+              className="flex items-center gap-1 rounded-full border border-gray-200 px-2 py-1 hover:bg-gray-50 transition-all"
             >
               <img src={getProfileImage()} alt="profile" className="h-7 w-7 rounded-full object-cover" />
               <span className="hidden max-w-20 truncate text-sm font-medium text-gray-700 xl:block">
@@ -272,8 +286,7 @@ function Navbar() {
             </button>
 
             {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50 overflow-hidden">
-                {/* User Info Section */}
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50 overflow-hidden animate-fadeIn">
                 <div className="p-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <img 
@@ -281,14 +294,13 @@ function Navbar() {
                       alt="profile" 
                       className="h-10 w-10 rounded-full object-cover" 
                     />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{user?.name || "User"}</p>
-                      <p className="text-xs text-gray-500">{user?.headline || "View your profile"}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{user?.name || "User"}</p>
+                      <p className="text-xs text-gray-500 truncate">{user?.headline || "View your profile"}</p>
                     </div>
                   </div>
                 </div>
                 
-                {/* Menu Items */}
                 <button
                   type="button"
                   onClick={() => {
@@ -334,7 +346,7 @@ function Navbar() {
 
       {/* MOBILE MENU */}
       {open && (
-        <div className="border-t border-gray-200 bg-white px-3 py-3 md:hidden">
+        <div className="border-t border-gray-200 bg-white px-3 py-3 md:hidden animate-slideDown">
           <div className="mb-3 relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -422,6 +434,38 @@ function Navbar() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+        
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </header>
   );
 }

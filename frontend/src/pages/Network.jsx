@@ -39,31 +39,48 @@ function Network() {
     fetchUsers();
 
     const unsubscribeFollow = onFollowRequest(() => {
+      console.log("Follow request event received, refreshing...");
       fetchUsers();
     });
+    
     const unsubscribeConnection = onConnectionUpdate(() => {
+      console.log("Connection update event received, refreshing...");
       fetchUsers();
     });
+
+    // ✅ Listen for profile updates (when someone accepts request)
+    const handleProfileUpdate = () => {
+      console.log("Profile updated, refreshing network suggestions...");
+      fetchUsers();
+    };
+    window.addEventListener("profileUpdated", handleProfileUpdate);
 
     return () => {
       unsubscribeFollow();
       unsubscribeConnection();
+      window.removeEventListener("profileUpdated", handleProfileUpdate);
     };
   }, [currentUser._id, fetchUsers]);
 
   const handleConnect = async (userId) => {
     setActionLoading(userId);
     try {
-      await axios.post(
+      const response = await axios.post(
         `${API}/users/${userId}/follow`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // ✅ Update local state
       setUsers((prev) =>
-        prev.map((user) => (user._id === userId ? { ...user, requestSent: true } : user))
+        prev.map((user) => 
+          user._id === userId 
+            ? { ...user, requestSent: true, pendingRequest: true }
+            : user
+        )
       );
-      alert("Connection request sent");
+      
+      alert(response.data?.msg || "Connection request sent");
     } catch (err) {
       console.error("Connect request failed:", err);
       alert(err.response?.data?.msg || "Failed to send connection request");
@@ -72,9 +89,20 @@ function Network() {
     }
   };
 
+  // Check if user is already connected
+  const isConnected = (user) => {
+    return user.followers?.some((id) => String(id) === String(currentUser._id));
+  };
+
+  // Check if request is pending
+  const isRequestPending = (user) => {
+    return user.requestSent === true || user.pendingRequest === true;
+  };
+
   const filteredUsers = users.filter(
     (user) =>
       String(user._id) !== String(currentUser._id) &&
+      !isConnected(user) && // ✅ Hide already connected users
       (searchTerm === "" ||
         user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.headline?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -87,7 +115,9 @@ function Network() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4">
           <div className="mb-4 sm:mb-6">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Network</h1>
-            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">Connect with professionals</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">
+              Connect with professionals you may know
+            </p>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-3 mb-3 sm:mb-4">
@@ -111,7 +141,10 @@ function Network() {
             </div>
           </div>
 
-          <div className="flex justify-end mb-3 sm:mb-4">
+          <div className="flex justify-between items-center mb-3 sm:mb-4">
+            <p className="text-xs text-gray-500">
+              Showing {filteredUsers.length} suggestions
+            </p>
             <button
               onClick={() => {
                 setRefreshing(true);
@@ -133,15 +166,18 @@ function Network() {
           ) : filteredUsers.length === 0 ? (
             <div className="bg-white rounded-lg border border-gray-200 p-8 sm:p-12 text-center">
               <Users size={32} className="sm:w-10 sm:h-10 mx-auto text-gray-300 mb-2 sm:mb-3" />
-              <p className="text-sm sm:text-base text-gray-600">No users found</p>
+              <p className="text-sm sm:text-base text-gray-600">No suggestions available</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Try refreshing or check back later
+              </p>
             </div>
           ) : (
             <div className="space-y-2 sm:space-y-3">
               {filteredUsers.map((user) => {
-                const isConnected = user.followers?.some(
-                  (id) => String(id) === String(currentUser._id)
-                );
-                const hasSentRequest = user.requestSent;
+                const connected = isConnected(user);
+                const pending = isRequestPending(user);
+
+                if (connected) return null; // Hide connected users
 
                 return (
                   <div
@@ -182,11 +218,9 @@ function Network() {
 
                       <button
                         onClick={() => handleConnect(user._id)}
-                        disabled={actionLoading === user._id || isConnected || hasSentRequest}
+                        disabled={actionLoading === user._id || pending}
                         className={`flex-shrink-0 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${
-                          isConnected
-                            ? "bg-gray-100 text-gray-500 cursor-default"
-                            : hasSentRequest
+                          pending
                             ? "bg-yellow-50 text-yellow-600 cursor-default border border-yellow-200"
                             : actionLoading === user._id
                             ? "bg-gray-200 text-gray-400 cursor-wait"
@@ -198,9 +232,7 @@ function Network() {
                             <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             <span className="hidden sm:inline">Sending...</span>
                           </span>
-                        ) : isConnected ? (
-                          "Connected"
-                        ) : hasSentRequest ? (
+                        ) : pending ? (
                           "Pending"
                         ) : (
                           <span className="flex items-center gap-1">
