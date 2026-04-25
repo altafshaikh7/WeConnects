@@ -8,6 +8,7 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isVisible, setIsVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const navigate = useNavigate();
 
@@ -30,6 +31,7 @@ function ForgotPassword() {
 
     setLoading(true);
     setError("");
+    setSuccessMessage("");
 
     try {
       const res = await axios.post(
@@ -37,14 +39,13 @@ function ForgotPassword() {
         { email }
       );
 
-      // Show success message
-      const successMsg = document.createElement('div');
-      successMsg.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg z-50 animate-bounce';
-      successMsg.textContent = '📩 Reset link sent! Check your email';
-      document.body.appendChild(successMsg);
+      setSuccessMessage("✅ Reset link sent! Check your email");
       
+      // Clear form
+      setEmail("");
+      
+      // Redirect after 2 seconds
       setTimeout(() => {
-        successMsg.remove();
         navigate("/");
       }, 2000);
 
@@ -63,10 +64,9 @@ function ForgotPassword() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f3f2ef] to-[#e9e5df] flex overflow-hidden">
       
-      {/* LEFT SECTION - EXACT SAME AS LOGIN PAGE */}
+      {/* LEFT SECTION */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0a66c2] to-[#004182] relative overflow-hidden">
         
-        {/* Animated Background Patterns */}
         <div className="absolute inset-0">
           {[...Array(50)].map((_, i) => (
             <div
@@ -108,7 +108,6 @@ function ForgotPassword() {
           <div className="absolute top-0 left-2/3 transform -translate-x-1/2 w-0.5 h-full bg-gradient-to-b from-transparent via-white/10 to-transparent animate-light-ray delay-4000"></div>
         </div>
         
-        {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16 text-white">
           <div className="mb-12 transform -translate-y-2 animate-slideDown">
             <Logo />
@@ -192,13 +191,8 @@ function ForgotPassword() {
             } hover:shadow-3xl`}
           >
             
-            {/* Header - Fixed Icon */}
-            <div className="mb-8 text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-[#0a66c2] to-[#004182] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 7.5a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM12 7.5a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM21 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2" />
-                </svg>
-              </div>
+            {/* Header - Removed Icon, Only Text */}
+            <div className="mb-6 text-center">
               <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#0a66c2] to-[#004182] bg-clip-text text-transparent mb-2">
                 Forgot Password?
               </h2>
@@ -206,6 +200,18 @@ function ForgotPassword() {
                 Don't worry! Enter your email to receive a reset link
               </p>
             </div>
+
+            {/* Success Message - Above the form */}
+            {successMessage && (
+              <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 animate-slideDown">
+                <p className="text-green-600 text-sm text-center flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {successMessage}
+                </p>
+              </div>
+            )}
 
             {/* Error Alert */}
             {error && (
@@ -298,7 +304,7 @@ function ForgotPassword() {
         @keyframes slideDown {
           from {
             opacity: 0;
-            transform: translateY(-30px);
+            transform: translateY(-20px);
           }
           to {
             opacity: 1;
@@ -456,7 +462,7 @@ function ForgotPassword() {
         }
         
         .animate-slideDown {
-          animation: slideDown 0.6s ease-out;
+          animation: slideDown 0.5s ease-out;
         }
         
         .animate-slideLeft {
