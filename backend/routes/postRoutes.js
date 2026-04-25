@@ -13,5 +13,6 @@ router.get("/me", auth, postController.getMyPosts);
 router.post("/:id/like", auth, postController.toggleLike);
 router.post("/:id/comment", auth, postController.addComment);
 router.post("/:id/impression", auth, postController.incrementImpression);
+router.delete("/:id", auth, postController.deletePost);
 
 module.exports = router;

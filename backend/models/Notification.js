@@ -22,6 +22,7 @@ const notificationSchema = new mongoose.Schema(
         "skill_added",
         "post_liked",
         "comment_added",
+        "message_received",
       ],
       required: true,
     },

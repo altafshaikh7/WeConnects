@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const Post = require("../models/Post");
 const FollowRequest = require("../models/FollowRequest");
-const Notification = require("../models/Notification");
+const notificationController = require("./notificationController");
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -11,7 +11,7 @@ exports.getAllUsers = async (req, res) => {
     res.json(users);
   } catch (err) {
     console.error("GET USERS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch users ❌" });
+    res.status(500).json({ error: "Could not fetch users" });
   }
 };
 
@@ -19,7 +19,7 @@ exports.getUserById = async (req, res) => {
   try {
     const targetUser = await User.findById(req.params.id).select("-password");
     if (!targetUser) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     if (String(req.user._id) !== String(targetUser._id)) {
@@ -30,7 +30,7 @@ exports.getUserById = async (req, res) => {
     res.json(targetUser);
   } catch (err) {
     console.error("GET USER ERROR:", err);
-    res.status(500).json({ error: "Could not fetch user ❌" });
+    res.status(500).json({ error: "Could not fetch user" });
   }
 };
 
@@ -38,13 +38,13 @@ exports.getUserPosts = async (req, res) => {
   try {
     const posts = await Post.find({ user: req.params.id })
       .populate("user", "name profileImage")
-      .populate("comments.user", "name")
+      .populate("comments.user", "name profileImage")
       .sort({ createdAt: -1 });
 
     res.json(posts);
   } catch (err) {
     console.error("GET USER POSTS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch user posts ❌" });
+    res.status(500).json({ error: "Could not fetch user posts" });
   }
 };
 
@@ -54,19 +54,18 @@ exports.followUser = async (req, res) => {
     const currentUser = await User.findById(req.user._id);
 
     if (!targetUser || !currentUser) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     if (String(targetUser._id) === String(currentUser._id)) {
-      return res.status(400).json({ msg: "You cannot follow yourself ❌" });
+      return res.status(400).json({ msg: "You cannot follow yourself" });
     }
 
     const alreadyFollowing = targetUser.followers.some(
       (id) => String(id) === String(currentUser._id)
     );
-
     if (alreadyFollowing) {
-      return res.status(400).json({ msg: "Already following ❌" });
+      return res.status(400).json({ msg: "Already following" });
     }
 
     const existingRequest = await FollowRequest.findOne({
@@ -74,9 +73,8 @@ exports.followUser = async (req, res) => {
       to: targetUser._id,
       status: "pending",
     });
-
     if (existingRequest) {
-      return res.status(400).json({ msg: "Request already sent ❌" });
+      return res.status(400).json({ msg: "Request already sent" });
     }
 
     const followRequest = await FollowRequest.create({
@@ -84,8 +82,6 @@ exports.followUser = async (req, res) => {
       to: targetUser._id,
     });
 
-    // Create notification for receiver
-    const notificationController = require("./notificationController");
     const notification = await notificationController.createNotification(
       targetUser._id,
       currentUser._id,
@@ -94,35 +90,32 @@ exports.followUser = async (req, res) => {
       followRequest._id
     );
 
-    // Emit notification through Socket.io (ONLY if notification was created successfully)
     if (notification) {
-      const io = req.app.get("io");
-      io.to(String(targetUser._id)).emit("receive_notification", {
-        _id: notification._id,
-        sender: notification.sender,
-        type: notification.type,
-        message: notification.message,
-        relatedRequest: notification.relatedRequest,
-        createdAt: notification.createdAt,
-        read: notification.read,
-      });
-      console.log(`📬 Notification sent to ${targetUser._id}`);
+      notificationController.emitNotification(req, targetUser._id, notification);
     }
 
-    // 🔹 EMIT NEW FOLLOW EVENT
-    const io = req.app.get("io");
-    io.emit("receive_follow_request", {
-      from: currentUser._id,
-      to: targetUser._id,
-      fromName: currentUser.name,
-      fromProfileImage: currentUser.profileImage,
+    const populatedRequest = await FollowRequest.findById(followRequest._id).populate(
+      "from",
+      "name profileImage headline _id"
+    );
+
+    const emitToUserRoom = req.app.get("emitToUserRoom");
+    emitToUserRoom?.(targetUser._id, "follow_request", {
+      request: populatedRequest,
+      sender: populatedRequest.from,
       timestamp: new Date(),
     });
 
-    res.json({ msg: "Follow request sent ✅", followRequest });
+    res.json({
+      success: true,
+      msg: "Follow request sent",
+      status: "pending",
+      followRequest: populatedRequest,
+      notification,
+    });
   } catch (err) {
     console.error("FOLLOW ERROR:", err);
-    res.status(500).json({ error: "Follow failed ❌" });
+    res.status(500).json({ error: "Follow failed" });
   }
 };
 
@@ -132,11 +125,11 @@ exports.unfollowUser = async (req, res) => {
     const currentUser = await User.findById(req.user._id);
 
     if (!targetUser || !currentUser) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     if (String(targetUser._id) === String(currentUser._id)) {
-      return res.status(400).json({ msg: "You cannot unfollow yourself ❌" });
+      return res.status(400).json({ msg: "You cannot unfollow yourself" });
     }
 
     targetUser.followers = targetUser.followers.filter(
@@ -149,22 +142,18 @@ exports.unfollowUser = async (req, res) => {
     await targetUser.save();
     await currentUser.save();
 
-    // 🔹 EMIT UNFOLLOW EVENT
-    const io = req.app.get("io");
-    io.emit("receive_unfollow", {
+    const emitToManyUsers = req.app.get("emitToManyUsers");
+    emitToManyUsers?.([currentUser._id, targetUser._id], "connection_update", {
+      action: "unfollowed",
       from: currentUser._id,
       to: targetUser._id,
-      fromName: currentUser.name,
       timestamp: new Date(),
     });
 
-    res.json({
-      targetUser,
-      currentUser,
-    });
+    res.json({ success: true, msg: "Unfollowed", targetUser, currentUser });
   } catch (err) {
     console.error("UNFOLLOW ERROR:", err);
-    res.status(500).json({ error: "Unfollow failed ❌" });
+    res.status(500).json({ error: "Unfollow failed" });
   }
 };
 
@@ -178,7 +167,7 @@ exports.getPendingRequests = async (req, res) => {
     res.json(requests);
   } catch (err) {
     console.error("GET PENDING REQUESTS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch requests ❌" });
+    res.status(500).json({ error: "Could not fetch requests" });
   }
 };
 
@@ -187,21 +176,20 @@ exports.acceptRequest = async (req, res) => {
     const request = await FollowRequest.findById(req.params.id);
 
     if (!request || String(request.to) !== String(req.user._id)) {
-      return res.status(404).json({ msg: "Request not found ❌" });
+      return res.status(404).json({ msg: "Request not found" });
     }
 
     if (request.status !== "pending") {
-      return res.status(400).json({ msg: "Request already processed ❌" });
+      return res.status(400).json({ msg: "Request already processed" });
     }
 
     const fromUser = await User.findById(request.from);
     const toUser = await User.findById(request.to);
 
-    // Prevent duplicate entries
-    if (!toUser.followers.includes(request.from)) {
+    if (!toUser.followers.some((id) => String(id) === String(request.from))) {
       toUser.followers.push(request.from);
     }
-    if (!fromUser.following.includes(request.to)) {
+    if (!fromUser.following.some((id) => String(id) === String(request.to))) {
       fromUser.following.push(request.to);
     }
 
@@ -211,8 +199,6 @@ exports.acceptRequest = async (req, res) => {
     await fromUser.save();
     await request.save();
 
-    // Create notification for sender
-    const notificationController = require("./notificationController");
     const notification = await notificationController.createNotification(
       request.from,
       request.to,
@@ -221,28 +207,28 @@ exports.acceptRequest = async (req, res) => {
       request._id
     );
 
-    // Emit notification through Socket.io (ONLY if notification was created successfully)
     if (notification) {
-      const io = req.app.get("io");
-      io.to(String(request.from)).emit("receive_notification", {
-        _id: notification._id,
-        sender: notification.sender,
-        type: notification.type,
-        message: notification.message,
-        relatedRequest: notification.relatedRequest,
-        createdAt: notification.createdAt,
-        read: notification.read,
-      });
-      console.log(`📬 Acceptance notification sent to ${request.from}`);
+      notificationController.emitNotification(req, request.from, notification);
     }
 
+    const emitToManyUsers = req.app.get("emitToManyUsers");
+    emitToManyUsers?.([request.from, request.to], "connection_update", {
+      action: "accepted",
+      requestId: request._id,
+      from: request.from,
+      to: request.to,
+      timestamp: new Date(),
+    });
+
     res.json({
-      msg: "Request accepted ✅",
-      notification: notification || null,
+      success: true,
+      msg: "Request accepted",
+      request,
+      notification,
     });
   } catch (err) {
     console.error("ACCEPT REQUEST ERROR:", err);
-    res.status(500).json({ error: "Accept failed ❌" });
+    res.status(500).json({ error: "Accept failed" });
   }
 };
 
@@ -251,19 +237,17 @@ exports.rejectRequest = async (req, res) => {
     const request = await FollowRequest.findById(req.params.id);
 
     if (!request || String(request.to) !== String(req.user._id)) {
-      return res.status(404).json({ msg: "Request not found ❌" });
+      return res.status(404).json({ msg: "Request not found" });
     }
 
     if (request.status !== "pending") {
-      return res.status(400).json({ msg: "Request already processed ❌" });
+      return res.status(400).json({ msg: "Request already processed" });
     }
 
     const toUser = await User.findById(request.to);
     request.status = "rejected";
     await request.save();
 
-    // Create notification for sender
-    const notificationController = require("./notificationController");
     const notification = await notificationController.createNotification(
       request.from,
       request.to,
@@ -272,32 +256,31 @@ exports.rejectRequest = async (req, res) => {
       request._id
     );
 
-    // Emit notification through Socket.io (ONLY if notification was created successfully)
     if (notification) {
-      const io = req.app.get("io");
-      io.to(String(request.from)).emit("receive_notification", {
-        _id: notification._id,
-        sender: notification.sender,
-        type: notification.type,
-        message: notification.message,
-        relatedRequest: notification.relatedRequest,
-        createdAt: notification.createdAt,
-        read: notification.read,
-      });
-      console.log(`📬 Rejection notification sent to ${request.from}`);
+      notificationController.emitNotification(req, request.from, notification);
     }
 
+    const emitToManyUsers = req.app.get("emitToManyUsers");
+    emitToManyUsers?.([request.from, request.to], "connection_update", {
+      action: "rejected",
+      requestId: request._id,
+      from: request.from,
+      to: request.to,
+      timestamp: new Date(),
+    });
+
     res.json({
-      msg: "Request rejected ✅",
-      notification: notification || null,
+      success: true,
+      msg: "Request rejected",
+      request,
+      notification,
     });
   } catch (err) {
     console.error("REJECT REQUEST ERROR:", err);
-    res.status(500).json({ error: "Reject failed ❌" });
+    res.status(500).json({ error: "Reject failed" });
   }
 };
 
-// 🔹 GET FOLLOWERS
 exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate(
@@ -306,17 +289,16 @@ exports.getFollowers = async (req, res) => {
     );
 
     if (!user) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     res.json(user.followers);
   } catch (err) {
     console.error("GET FOLLOWERS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch followers ❌" });
+    res.status(500).json({ error: "Could not fetch followers" });
   }
 };
 
-// 🔹 GET FOLLOWING
 exports.getFollowing = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate(
@@ -325,93 +307,98 @@ exports.getFollowing = async (req, res) => {
     );
 
     if (!user) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     res.json(user.following);
   } catch (err) {
     console.error("GET FOLLOWING ERROR:", err);
-    res.status(500).json({ error: "Could not fetch following ❌" });
+    res.status(500).json({ error: "Could not fetch following" });
   }
 };
 
-// 🔹 ADD SKILL
 exports.addSkill = async (req, res) => {
   try {
     const { skill } = req.body;
 
     if (!skill || skill.trim() === "") {
-      return res.status(400).json({ msg: "Skill is required ❌" });
+      return res.status(400).json({ msg: "Skill is required" });
     }
 
     const user = await User.findById(req.user._id);
-
     if (!user) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     if (user.skills.includes(skill.trim())) {
-      return res.status(400).json({ msg: "Skill already exists ❌" });
+      return res.status(400).json({ msg: "Skill already exists" });
     }
 
     user.skills.push(skill.trim());
     await user.save();
 
-    res.json({ msg: "Skill added successfully ✅", skills: user.skills });
+    res.json({ msg: "Skill added successfully", skills: user.skills });
   } catch (err) {
     console.error("ADD SKILL ERROR:", err);
-    res.status(500).json({ error: "Could not add skill ❌" });
+    res.status(500).json({ error: "Could not add skill" });
   }
 };
 
-// 🔹 REMOVE SKILL
 exports.removeSkill = async (req, res) => {
   try {
     const { skill } = req.body;
 
     if (!skill) {
-      return res.status(400).json({ msg: "Skill is required ❌" });
+      return res.status(400).json({ msg: "Skill is required" });
     }
 
     const user = await User.findById(req.user._id);
-
     if (!user) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
-    user.skills = user.skills.filter((s) => s !== skill);
+    user.skills = user.skills.filter((item) => item !== skill);
     await user.save();
 
-    res.json({ msg: "Skill removed successfully ✅", skills: user.skills });
+    res.json({ msg: "Skill removed successfully", skills: user.skills });
   } catch (err) {
     console.error("REMOVE SKILL ERROR:", err);
-    res.status(500).json({ error: "Could not remove skill ❌" });
+    res.status(500).json({ error: "Could not remove skill" });
   }
 };
 
-// 🔹 GET SUGGESTED USERS (for networking)
 exports.getSuggestedUsers = async (req, res) => {
   try {
     const currentUser = await User.findById(req.user._id);
 
-    // Get users that the current user is not already following
+    const pendingRequests = await FollowRequest.find({
+      from: req.user._id,
+      status: "pending",
+    }).select("to");
+
+    const pendingUserIds = pendingRequests.map((request) => request.to);
+
     const suggestedUsers = await User.find({
       _id: {
         $ne: req.user._id,
-        $nin: currentUser.following,
+        $nin: [...currentUser.following, ...pendingUserIds],
       },
     })
-      .select("name headline profileImage _id followers")
+      .select("name headline profileImage _id followers bio")
       .limit(10);
 
-    res.json(suggestedUsers);
+    res.json(
+      suggestedUsers.map((user) => ({
+        ...user.toObject(),
+        requestSent: pendingUserIds.some((id) => String(id) === String(user._id)),
+      }))
+    );
   } catch (err) {
     console.error("GET SUGGESTED USERS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch suggested users ❌" });
+    res.status(500).json({ error: "Could not fetch suggested users" });
   }
 };
 
-// 🔹 GET CONNECTION STATUS (check if already following, pending, etc.)
 exports.getConnectionStatus = async (req, res) => {
   try {
     const targetUserId = req.params.id;
@@ -421,22 +408,19 @@ exports.getConnectionStatus = async (req, res) => {
     const targetUser = await User.findById(targetUserId);
 
     if (!targetUser) {
-      return res.status(404).json({ msg: "User not found ❌" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
-    // Check if already following
     const isFollowing = targetUser.followers.some(
       (id) => String(id) === String(currentUserId)
     );
 
-    // Check for pending request
     const pendingRequest = await FollowRequest.findOne({
       from: currentUserId,
       to: targetUserId,
       status: "pending",
     });
 
-    // Check if target user is following current user
     const isFollowedBy = currentUser.followers.some(
       (id) => String(id) === String(targetUserId)
     );
@@ -445,10 +429,10 @@ exports.getConnectionStatus = async (req, res) => {
       isFollowing,
       isPending: !!pendingRequest,
       isFollowedBy,
-      requestId: pendingRequest?._id,
+      requestId: pendingRequest?._id || null,
     });
   } catch (err) {
     console.error("GET CONNECTION STATUS ERROR:", err);
-    res.status(500).json({ error: "Could not fetch connection status ❌" });
+    res.status(500).json({ error: "Could not fetch connection status" });
   }
 };

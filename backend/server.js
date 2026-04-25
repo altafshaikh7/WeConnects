@@ -7,14 +7,11 @@ const passport = require("./config/passport");
 const http = require("http");
 const { Server } = require("socket.io");
 
-// ================= LOAD ENV =================
 dotenv.config();
 
-// ================= INIT APP =================
-const app = express();  // ✅ IMPORTANT - app defined here
+const app = express();
 const server = http.createServer(app);
 
-// ================= SOCKET.IO SETUP =================
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -28,88 +25,147 @@ const io = new Server(server, {
 
 const activeUsers = new Map();
 
+const normalizeUserId = (userId) => (userId ? String(userId) : null);
+
+const addSocketForUser = (userId, socketId) => {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return;
+
+  const sockets = activeUsers.get(normalizedUserId) || new Set();
+  sockets.add(socketId);
+  activeUsers.set(normalizedUserId, sockets);
+};
+
+const removeSocketForUser = (userId, socketId) => {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return;
+
+  const sockets = activeUsers.get(normalizedUserId);
+  if (!sockets) return;
+
+  sockets.delete(socketId);
+  if (sockets.size === 0) {
+    activeUsers.delete(normalizedUserId);
+  }
+};
+
+const emitToUserRoom = (userId, eventName, payload) => {
+  const normalizedUserId = normalizeUserId(userId);
+  if (!normalizedUserId) return;
+  io.to(normalizedUserId).emit(eventName, payload);
+};
+
+const emitToManyUsers = (userIds = [], eventName, payload) => {
+  const seen = new Set();
+
+  userIds.forEach((userId) => {
+    const normalizedUserId = normalizeUserId(userId);
+    if (!normalizedUserId || seen.has(normalizedUserId)) return;
+    seen.add(normalizedUserId);
+    emitToUserRoom(normalizedUserId, eventName, payload);
+  });
+};
+
 io.on("connection", (socket) => {
-  console.log(`✅ Socket connected: ${socket.id}`);
+  console.log(`Socket connected: ${socket.id}`);
 
   socket.on("user_online", (userId) => {
-    if (!userId) return;
-    activeUsers.set(userId, socket.id);
-    socket.join(userId);
-    console.log(`👤 User ${userId} is online`);
+    const normalizedUserId = normalizeUserId(userId);
+    if (!normalizedUserId) return;
+
+    socket.data.userId = normalizedUserId;
+    addSocketForUser(normalizedUserId, socket.id);
+    socket.join(normalizedUserId);
+
+    socket.emit("socket_ready", {
+      socketId: socket.id,
+      userId: normalizedUserId,
+    });
+  });
+
+  socket.on("send_notification", ({ recipientId, notification }) => {
+    if (!recipientId || !notification) return;
+    emitToUserRoom(recipientId, "new_notification", notification);
+  });
+
+  socket.on("send_message", ({ to, message }) => {
+    if (!to || !message) return;
+    emitToUserRoom(to, "receive_message", message);
+  });
+
+  socket.on("typing", ({ to, isTyping }) => {
+    if (!to || typeof isTyping !== "boolean") return;
+    emitToUserRoom(to, "user_typing", {
+      isTyping,
+      from: socket.data.userId || null,
+      timestamp: new Date(),
+    });
+  });
+
+  socket.on("message_read", ({ to, messageId }) => {
+    if (!to || !messageId) return;
+    emitToUserRoom(to, "message_read_receipt", {
+      messageId,
+      readAt: new Date(),
+      by: socket.data.userId || null,
+    });
   });
 
   socket.on("disconnect", () => {
-    for (const [userId, socketId] of activeUsers) {
-      if (socketId === socket.id) {
-        activeUsers.delete(userId);
-        break;
-      }
+    if (socket.data.userId) {
+      removeSocketForUser(socket.data.userId, socket.id);
     }
+
+    console.log(`Socket disconnected: ${socket.id}`);
   });
 });
 
 app.set("io", io);
+app.set("emitToUserRoom", emitToUserRoom);
+app.set("emitToManyUsers", emitToManyUsers);
 
-// ================= DATABASE =================
 const connectDB = require("./config/db");
 connectDB();
 
-// ================= MIDDLEWARE =================
 app.use(helmet());
 app.use(morgan("dev"));
-app.use(cors({
-  origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(passport.initialize());
 app.use("/uploads", express.static("uploads"));
 
-// ================= ROUTES =================
-console.log("\n🔍 LOADING ROUTES...\n");
-
 app.use("/api/auth", require("./routes/authRoutes"));
-console.log("✅ /api/auth loaded");
-
 app.use("/api/profile", require("./routes/profileRoutes"));
-console.log("✅ /api/profile loaded");
-
 app.use("/api/users", require("./routes/userRoutes"));
-console.log("✅ /api/users loaded");
-
 app.use("/api/posts", require("./routes/postRoutes"));
-console.log("✅ /api/posts loaded");
-
 app.use("/api/news", require("./routes/newsRoutes"));
-console.log("✅ /api/news loaded");
-
 app.use("/api/notifications", require("./routes/notificationRoutes"));
-console.log("✅ /api/notifications loaded");
-
 app.use("/api/search", require("./routes/searchRoutes"));
-console.log("✅ /api/search loaded");
-
 app.use("/api/messages", require("./routes/messageRoutes"));
-console.log("✅ /api/messages loaded");
 
-// ================= TEST ROUTE =================
 app.get("/", (req, res) => {
-  res.send("API Running 🚀");
+  res.send("API Running");
 });
 
-// ================= ERROR HANDLERS =================
 app.use((req, res) => {
-  res.status(404).json({ msg: "Route not found ❌" });
+  res.status(404).json({ success: false, msg: "Route not found" });
 });
 
 app.use((err, req, res, next) => {
-  console.error("❌ ERROR:", err.message);
-  res.status(500).json({ error: err.message || "Something went wrong ❌" });
+  console.error("SERVER ERROR:", err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || "Something went wrong",
+  });
 });
 
-// ================= SERVER =================
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://127.0.0.1:${PORT}\n`);
+  console.log(`Server running on http://127.0.0.1:${PORT}`);
 });
