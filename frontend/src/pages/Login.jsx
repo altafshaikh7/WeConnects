@@ -28,8 +28,6 @@ function Login() {
 
     setIsLoading(true);
     setError("");
-    
-    // Show loading overlay
     setShowLoadingOverlay(true);
 
     try {
@@ -43,7 +41,14 @@ function Login() {
 
       localStorage.setItem("token", res.data.token);
       
-      // Keep loading overlay for 2 seconds before redirecting
+      if (res.data.user) {
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+      }
+      
+      window.dispatchEvent(new CustomEvent("profileUpdated", { 
+        detail: { user: res.data.user } 
+      }));
+
       setTimeout(() => {
         setShowLoadingOverlay(false);
         navigate("/home");
@@ -59,9 +64,7 @@ function Login() {
   // 🔥 GOOGLE LOGIN
   const handleGoogleLogin = () => {
     setShowLoadingOverlay(true);
-    setTimeout(() => {
-      window.open("http://localhost:5000/api/auth/google", "_self");
-    }, 500);
+    window.location.href = "http://localhost:5000/api/auth/google";
   };
 
   const handleKeyPress = (e) => {
@@ -72,48 +75,27 @@ function Login() {
 
   return (
     <>
-      {/* Loading Overlay */}
+      {/* Loading Overlay - White Background */}
       {showLoadingOverlay && (
-        <div className="fixed inset-0 bg-gradient-to-br from-[#0a66c2] to-[#004182] z-50 flex flex-col items-center justify-center">
-          {/* Animated Background */}
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute top-20 left-10 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-ping"></div>
-          </div>
-          
+        <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
           {/* Loading Content */}
           <div className="relative z-10 text-center">
-            {/* "We Connect" Text with fade in - White Color */}
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 animate-pulse">
+            <div className="mb-8">
+              <Logo />
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-bold text-[#0a66c2] mb-8">
               We Connect
             </h1>
             
-            {/* Animated Blue Line - Left to Right */}
             <div className="w-64 md:w-96 mx-auto relative">
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="h-1 bg-white/30 rounded-full w-full"></div>
+                <div className="h-1 bg-gray-200 rounded-full w-full"></div>
               </div>
               <div className="relative h-1 overflow-hidden rounded-full">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-300 to-white animate-loading-line"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#0a66c2] to-transparent animate-loading-line"></div>
               </div>
             </div>
-          </div>
-          
-          {/* Particles Animation */}
-          <div className="absolute inset-0 pointer-events-none">
-            {[...Array(20)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-1 h-1 bg-white/30 rounded-full animate-float"
-                style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
-                  animationDelay: `${Math.random() * 2}s`,
-                  animationDuration: `${3 + Math.random() * 2}s`
-                }}
-              ></div>
-            ))}
           </div>
         </div>
       )}
@@ -124,7 +106,6 @@ function Login() {
         {/* LEFT SECTION - We Connect Branding */}
         <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0a66c2] to-[#004182] relative overflow-hidden">
           
-          {/* Animated Particle Field */}
           <div className="absolute inset-0">
             {[...Array(50)].map((_, i) => (
               <div
@@ -142,12 +123,10 @@ function Login() {
             ))}
           </div>
           
-          {/* Animated Gradient Orbs */}
           <div className="absolute top-0 -left-40 w-96 h-96 bg-blue-400/30 rounded-full blur-3xl animate-orb-1"></div>
           <div className="absolute bottom-0 -right-40 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-orb-2"></div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse-slow"></div>
           
-          {/* Animated Wave Pattern */}
           <svg className="absolute bottom-0 left-0 w-full opacity-20" preserveAspectRatio="none" viewBox="0 0 1440 120">
             <path d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z" 
               fill="white" className="animate-wave-1"></path>
@@ -155,42 +134,35 @@ function Login() {
               fill="white" className="animate-wave-2" opacity="0.5"></path>
           </svg>
           
-          {/* Animated Floating Shapes */}
           <div className="absolute top-20 right-20 w-40 h-40 border-4 border-white/10 rounded-2xl animate-float-shape-1"></div>
           <div className="absolute bottom-32 left-20 w-32 h-32 border-4 border-white/10 rounded-full animate-float-shape-2"></div>
           <div className="absolute top-1/3 left-1/4 w-20 h-20 bg-white/5 rounded-lg animate-float-shape-3"></div>
           <div className="absolute bottom-40 right-32 w-24 h-24 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-2xl animate-float-shape-4"></div>
           
-          {/* Rotating Rings */}
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-2 border-white/10 rounded-full animate-rotate-ring"></div>
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 border-2 border-white/5 rounded-full animate-rotate-ring-reverse"></div>
           
-          {/* Light Rays */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-transparent via-white/20 to-transparent animate-light-ray"></div>
             <div className="absolute top-0 left-1/3 transform -translate-x-1/2 w-0.5 h-full bg-gradient-to-b from-transparent via-white/10 to-transparent animate-light-ray delay-2000"></div>
             <div className="absolute top-0 left-2/3 transform -translate-x-1/2 w-0.5 h-full bg-gradient-to-b from-transparent via-white/10 to-transparent animate-light-ray delay-4000"></div>
           </div>
           
-          {/* Content - Left Side with We Connect */}
           <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16 text-white">
             <div className="mb-12 transform -translate-y-2 animate-slideDown">
               <Logo />
             </div>
             
-            {/* We Connect - Only Here on Left Side */}
             <h1 className="text-6xl font-bold mb-4 leading-tight animate-slideLeft bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
               We Connect
             </h1>
             
-            {/* Professional Underline */}
             <div className="w-24 h-1 bg-gradient-to-r from-blue-300 to-white mb-6 animate-slideLeft animation-delay-200"></div>
             
             <p className="text-xl mb-12 text-blue-100 animate-slideLeft animation-delay-200 leading-relaxed">
               Join the professional network that helps you grow, learn, and succeed in your career.
             </p>
             
-            {/* Features Grid - Clean and Professional */}
             <div className="space-y-4">
               <div className="flex items-start gap-4 group cursor-pointer transform transition-all duration-300 hover:translate-x-2">
                 <div className="bg-white/10 p-3 rounded-xl group-hover:bg-white/20 transition-all backdrop-blur-sm">
@@ -259,7 +231,7 @@ function Login() {
               } hover:shadow-3xl`}
             >
               
-              {/* Header - Removed any "We Connect" text from here */}
+              {/* Header */}
               <div className="mb-8 text-center">
                 <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#0a66c2] to-[#004182] bg-clip-text text-transparent mb-2">
                   Welcome back
