@@ -1,23 +1,17 @@
 const Post = require("../models/Post");
 
-// ================= CREATE POST =================
+// CREATE POST
 exports.createPost = async (req, res) => {
   try {
     const { text } = req.body;
 
     if ((!text || !text.trim()) && (!req.files || req.files.length === 0)) {
-      return res.status(400).json({
-        msg: "Post must contain text or image",
-      });
+      return res.status(400).json({ msg: "Post must contain text or image" });
     }
 
     let imageUrls = [];
-
-    // ✅ CLOUDINARY SAFE
     if (req.files && req.files.length > 0) {
-      imageUrls = req.files
-        .map((file) => file.path || file.secure_url || "")
-        .filter(Boolean);
+      imageUrls = req.files.map((file) => file.path || file.secure_url || "").filter(Boolean);
     }
 
     const post = await Post.create({
@@ -27,37 +21,33 @@ exports.createPost = async (req, res) => {
     });
 
     res.status(201).json(post);
-
   } catch (err) {
     console.error("CREATE ERROR:", err);
     res.status(500).json({ error: "Post create failed ❌" });
   }
 };
 
-// ================= GET POSTS =================
+// GET POSTS
 exports.getPosts = async (req, res) => {
   try {
     const posts = await Post.find()
       .populate("user", "name profileImage")
       .populate("comments.user", "name")
       .sort({ createdAt: -1 });
-
     res.json(posts);
-
   } catch (err) {
     console.error("GET ERROR:", err);
     res.status(500).json({ error: "Fetch failed ❌" });
   }
 };
 
-// ================= GET CURRENT USER POSTS =================
+// GET MY POSTS
 exports.getMyPosts = async (req, res) => {
   try {
     const posts = await Post.find({ user: req.user._id })
       .populate("user", "name profileImage")
       .populate("comments.user", "name")
       .sort({ createdAt: -1 });
-
     res.json(posts);
   } catch (err) {
     console.error("MY POSTS ERROR:", err);
@@ -65,77 +55,51 @@ exports.getMyPosts = async (req, res) => {
   }
 };
 
-// ================= LIKE / UNLIKE =================
+// LIKE/UNLIKE
 exports.toggleLike = async (req, res) => {
   try {
+    console.log("🔵 toggleLike called for post:", req.params.id);
+    
     const post = await Post.findById(req.params.id);
-
     if (!post) {
       return res.status(404).json({ msg: "Post not found ❌" });
     }
 
     const userId = req.user._id;
-
-    const alreadyLiked = post.likes.some(
-      (id) => id.toString() === userId.toString()
-    );
+    const alreadyLiked = post.likes.some((id) => id.toString() === userId.toString());
 
     if (alreadyLiked) {
-      post.likes = post.likes.filter(
-        (id) => id.toString() !== userId.toString()
-      );
+      post.likes = post.likes.filter((id) => id.toString() !== userId.toString());
     } else {
       post.likes.push(userId);
     }
 
     await post.save();
+    await post.populate("user", "name profileImage").populate("comments.user", "name");
 
-    await post
-      .populate("user", "name profileImage")
-      .populate("comments.user", "name");
-
-    // 🔹 EMIT SOCKET.IO EVENT
     const io = req.app.get("io");
     if (io) {
-      if (alreadyLiked) {
-        io.emit("receive_unlike", {
-          postId: post._id,
-          userId: userId,
-          likeCount: post.likes.length,
-        });
-      } else {
-        io.emit("receive_like", {
-          postId: post._id,
-          userId: userId,
-          likeCount: post.likes.length,
-        });
-      }
+      const event = alreadyLiked ? "receive_unlike" : "receive_like";
+      io.emit(event, { postId: post._id, userId: userId, likeCount: post.likes.length });
     }
 
     res.json(post);
-
   } catch (err) {
     console.error("LIKE ERROR:", err);
-    res.status(500).json({ msg: "Like failed ❌" });
+    res.status(500).json({ msg: "Like failed ❌", error: err.message });
   }
 };
 
-// ================= POST IMPRESSIONS =================
+// INCREMENT IMPRESSION
 exports.incrementImpression = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-
     if (!post) {
       return res.status(404).json({ msg: "Post not found ❌" });
     }
-
     post.impressions = (post.impressions || 0) + 1;
     await post.save();
-
-    await post
-      .populate("user", "name profileImage")
-      .populate("comments.user", "name");
-
+    await post.populate("user", "name profileImage").populate("comments.user", "name");
     res.json(post);
   } catch (err) {
     console.error("IMPRESSION ERROR:", err);
@@ -143,17 +107,15 @@ exports.incrementImpression = async (req, res) => {
   }
 };
 
-// ================= ADD COMMENT =================
+// ADD COMMENT
 exports.addComment = async (req, res) => {
   try {
     const { text } = req.body;
-
     if (!text || !text.trim()) {
       return res.status(400).json({ msg: "Empty comment ❌" });
     }
 
     const post = await Post.findById(req.params.id);
-
     if (!post) {
       return res.status(404).json({ msg: "Post not found ❌" });
     }
@@ -164,15 +126,15 @@ exports.addComment = async (req, res) => {
     });
 
     await post.save();
-
     const updatedPost = await Post.findById(req.params.id)
       .populate("user", "name profileImage")
       .populate("comments.user", "name");
 
     res.json(updatedPost);
-
   } catch (err) {
     console.error("COMMENT ERROR:", err);
     res.status(500).json({ msg: "Comment failed ❌" });
   }
 };
+
+console.log("✅ postController.js loaded successfully");

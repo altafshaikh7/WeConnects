@@ -1,34 +1,17 @@
 const express = require("express");
 const router = express.Router();
-
 const upload = require("../middleware/upload");
 const auth = require("../middleware/auth");
 
-const {
-  createPost,
-  getPosts,
-  getMyPosts,
-  toggleLike,
-  addComment,
-  incrementImpression,
-} = require("../controllers/postController");
+const postController = require("../controllers/postController");
 
-// ✅ CREATE POST (FIXED ORDER 🔥)
-router.post("/", auth, upload.array("images", 5), createPost);
+console.log("🔍 postController keys:", Object.keys(postController));
 
-// ✅ GET POSTS
-router.get("/", getPosts);
-
-// ✅ GET MY POSTS
-router.get("/me", auth, getMyPosts);
-
-// ✅ LIKE
-router.post("/:id/like", auth, toggleLike);
-
-// ✅ COMMENT
-router.post("/:id/comment", auth, addComment);
-
-// ✅ IMPRESSIONS
-router.post("/:id/impression", auth, incrementImpression);
+router.post("/", auth, upload.array("images", 5), postController.createPost);
+router.get("/", postController.getPosts);
+router.get("/me", auth, postController.getMyPosts);
+router.post("/:id/like", auth, postController.toggleLike);
+router.post("/:id/comment", auth, postController.addComment);
+router.post("/:id/impression", auth, postController.incrementImpression);
 
 module.exports = router;
