@@ -21,6 +21,38 @@ const educationSchema = new mongoose.Schema({
   description: String,
 });
 
+// 🔹 NOTIFICATIONS SCHEMA
+const notificationsSchema = new mongoose.Schema({
+  email: { type: Boolean, default: true },
+  push: { type: Boolean, default: true },
+  sms: { type: Boolean, default: false }
+}, { _id: false });
+
+// 🔹 PRIVACY SCHEMA
+const privacySchema = new mongoose.Schema({
+  profileVisibility: { 
+    type: String, 
+    default: "public", 
+    enum: ["public", "connections", "private"] 
+  },
+  showEmail: { type: Boolean, default: false },
+  showPhone: { type: Boolean, default: false }
+}, { _id: false });
+
+// 🔹 APPEARANCE SCHEMA
+const appearanceSchema = new mongoose.Schema({
+  theme: { 
+    type: String, 
+    default: "light", 
+    enum: ["light", "dark"] 
+  },
+  fontSize: { 
+    type: String, 
+    default: "medium", 
+    enum: ["small", "medium", "large"] 
+  }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -68,6 +100,49 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
 
+    // 🔹 CONTACT INFO
+    phone: {
+      type: String,
+      default: ""
+    },
+
+    location: {
+      type: String,
+      default: ""
+    },
+
+    // 🔹 PROFESSIONAL INFO
+    company: {
+      type: String,
+      default: ""
+    },
+
+    position: {
+      type: String,
+      default: ""
+    },
+
+    website: {
+      type: String,
+      default: ""
+    },
+
+    // 🔹 SOCIAL LINKS
+    github: {
+      type: String,
+      default: ""
+    },
+
+    linkedin: {
+      type: String,
+      default: ""
+    },
+
+    twitter: {
+      type: String,
+      default: ""
+    },
+
     followers: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -105,6 +180,22 @@ const userSchema = new mongoose.Schema(
     postImpressions: {
       type: Number,
       default: 0,
+    },
+
+    // 🔹 SETTINGS
+    notifications: {
+      type: notificationsSchema,
+      default: () => ({})
+    },
+
+    privacy: {
+      type: privacySchema,
+      default: () => ({})
+    },
+
+    appearance: {
+      type: appearanceSchema,
+      default: () => ({})
     },
 
     experience: [experienceSchema],

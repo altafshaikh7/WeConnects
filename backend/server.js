@@ -139,6 +139,7 @@ app.use(express.json());
 app.use(passport.initialize());
 app.use("/uploads", express.static("uploads"));
 
+
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/profile", require("./routes/profileRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
@@ -147,6 +148,7 @@ app.use("/api/news", require("./routes/newsRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/search", require("./routes/searchRoutes"));
 app.use("/api/messages", require("./routes/messageRoutes"));
+app.use("/api/settings", require("./routes/settingsRoutes"));
 
 app.get("/", (req, res) => {
   res.send("API Running");
