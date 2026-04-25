@@ -85,7 +85,7 @@ function Login() {
             </div>
             
             <h1 className="text-5xl md:text-7xl font-bold text-[#0a66c2] mb-8">
-              We Connects
+              WeConnects
             </h1>
             
             <div className="w-64 md:w-96 mx-auto relative">
@@ -154,7 +154,7 @@ function Login() {
             </div>
             
             <h1 className="text-6xl font-bold mb-4 leading-tight animate-slideLeft bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-              We Connect
+              WeConnects
             </h1>
             
             <div className="w-24 h-1 bg-gradient-to-r from-blue-300 to-white mb-6 animate-slideLeft animation-delay-200"></div>

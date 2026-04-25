@@ -7,6 +7,7 @@ import Profile from "../pages/Profile";
 import Network from "../pages/Network";
 import Messages from "../pages/Messages";
 import Notifications from "../pages/Notifications";
+import Settings from "../pages/Settings";  // 👈 ADD THIS
 
 // 👇 NEW IMPORTS
 import ForgotPassword from "../pages/ForgotPassword";
@@ -29,6 +30,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile/:id" element={<Profile />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/settings" element={<Settings />} />  {/* 👈 ADD THIS */}
 
         {/* 🔁 FORGOT PASSWORD FLOW */}
         <Route path="/forgot-password" element={<ForgotPassword />} />

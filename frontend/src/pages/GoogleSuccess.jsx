@@ -28,7 +28,7 @@ function GoogleSuccess() {
       <div className="text-center">
         {/* "We Connect" Text - Only One */}
         <h1 className="text-5xl md:text-7xl font-bold text-[#0a66c2] mb-8">
-          We Connect
+          WeConnects
         </h1>
         
         {/* Animated Line - Left to Right */}

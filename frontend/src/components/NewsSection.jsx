@@ -102,7 +102,7 @@ function NewsSection() {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span>📰</span> Real-time News
+              <span>📰</span>Latest News
             </h2>
             <p className="text-xs text-gray-500 mt-1">
               Last updated: {lastUpdated.toLocaleTimeString()}

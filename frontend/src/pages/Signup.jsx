@@ -120,7 +120,7 @@ function Signup() {
           
           <div className="relative z-10 text-center">
             <h1 className="text-5xl md:text-7xl font-bold text-white mb-8 animate-pulse">
-              We Connect
+              WeConnects
             </h1>
             
             <div className="w-64 md:w-96 mx-auto relative">
@@ -153,7 +153,7 @@ function Signup() {
       {/* Main Signup Page - FIXED HEIGHT, NO SCROLLING */}
       <div className="h-screen w-screen bg-gradient-to-br from-[#f3f2ef] to-[#e9e5df] flex overflow-hidden">
         
-        {/* LEFT SECTION - We Connect Branding */}
+        {/* LEFT SECTION - WeConnects Branding */}
         <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#0a66c2] to-[#004182] relative overflow-hidden h-full">
           
           {/* Animated Background Elements */}
@@ -205,7 +205,7 @@ function Signup() {
             </div>
             
             <h1 className="text-5xl font-bold mb-3 leading-tight animate-slideLeft bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-              Join We Connect
+              Join WeConnects
             </h1>
             
             <div className="w-24 h-1 bg-gradient-to-r from-blue-300 to-white mb-5 animate-slideLeft animation-delay-200"></div>

@@ -114,7 +114,7 @@ function ForgotPassword() {
           </div>
           
           <h1 className="text-6xl font-bold mb-4 leading-tight animate-slideLeft bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-            We Connect
+            WeConnects
           </h1>
           
           <div className="w-24 h-1 bg-gradient-to-r from-blue-300 to-white mb-6 animate-slideLeft animation-delay-200"></div>

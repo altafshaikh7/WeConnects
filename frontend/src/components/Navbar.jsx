@@ -13,7 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import axios from "axios";
-import Logo from "./logo";
+import Logo from "./Logo";
 import { initSocket, onReceiveNotification } from "../utils/socketClient";
 
 function Navbar() {
@@ -156,27 +156,36 @@ function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-3 sm:px-4">
-        <button className="md:hidden" onClick={() => setOpen((prev) => !prev)} type="button">
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2 sm:px-4">
+        
+        {/* LEFT - Menu + Logo */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button className="md:hidden p-1" onClick={() => setOpen((prev) => !prev)} type="button">
+            {open ? <X size={20} /> : <Menu size={20} />}
+          </button>
 
-        <button type="button" onClick={() => navigate("/home")} className="shrink-0">
-          <Logo />
-        </button>
+          <button type="button" onClick={() => navigate("/home")} className="shrink-0">
+            <div className="text-lg sm:text-xl md:text-2xl font-bold text-[#0A66C2] cursor-pointer whitespace-nowrap">
+              WeConnects
+            </div>
+          </button>
+        </div>
 
-        <div ref={searchRef} className="relative hidden flex-1 md:block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search people"
-            className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-          />
+        {/* CENTER - Search Bar (Fixed Size) */}
+        <div ref={searchRef} className="hidden md:block flex-1 max-w-sm mx-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search people..."
+              className="w-full rounded-full border border-gray-200 bg-gray-50 py-1.5 pl-9 pr-4 text-sm focus:border-blue-500 focus:bg-white focus:outline-none"
+            />
+          </div>
 
           {showResults && (
-            <div className="absolute top-full mt-2 w-full rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+            <div className="absolute left-0 right-0 top-full mt-2 max-w-sm rounded-xl border border-gray-200 bg-white p-2 shadow-lg z-50">
               {loading ? (
                 <p className="px-3 py-2 text-sm text-gray-500">Searching...</p>
               ) : (
@@ -192,7 +201,7 @@ function Navbar() {
                         setSearchQuery("");
                       }
                     }}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-gray-50 disabled:cursor-default disabled:hover:bg-white"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-gray-50 disabled:cursor-default"
                   >
                     {!result.notFound && !result.error && (
                       <img
@@ -201,13 +210,13 @@ function Navbar() {
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(result.name || "User")}&background=0A66C2&color=fff`
                         }
                         alt={result.name}
-                        className="h-9 w-9 rounded-full object-cover"
+                        className="h-8 w-8 rounded-full object-cover"
                       />
                     )}
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{result.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{result.name}</p>
                       {!result.notFound && !result.error && (
-                        <p className="text-xs text-gray-500">{result.headline || "Professional"}</p>
+                        <p className="text-xs text-gray-500 truncate">{result.headline || "Professional"}</p>
                       )}
                     </div>
                   </button>
@@ -217,7 +226,8 @@ function Navbar() {
           )}
         </div>
 
-        <nav className="ml-auto hidden items-center gap-1 md:flex">
+        {/* RIGHT - Nav Items */}
+        <nav className="flex items-center gap-1 shrink-0">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = location.pathname === item.path;
@@ -226,12 +236,12 @@ function Navbar() {
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm ${
+                className={`hidden md:flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
                   active ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
                 <Icon size={18} />
-                <span>{item.label}</span>
+                <span className="hidden lg:inline">{item.label}</span>
               </button>
             );
           })}
@@ -253,38 +263,39 @@ function Navbar() {
             <button
               type="button"
               onClick={() => setShowProfileDropdown((prev) => !prev)}
-              className="flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1.5 hover:bg-gray-50"
+              className="flex items-center gap-1 rounded-full border border-gray-200 px-2 py-1 hover:bg-gray-50"
             >
-              <img src={getProfileImage()} alt="profile" className="h-8 w-8 rounded-full object-cover" />
-              <span className="hidden max-w-24 truncate text-sm font-medium text-gray-700 lg:block">
-                {user?.name || "Profile"}
+              <img src={getProfileImage()} alt="profile" className="h-7 w-7 rounded-full object-cover" />
+              <span className="hidden max-w-20 truncate text-sm font-medium text-gray-700 xl:block">
+                {user?.name?.split(" ")[0] || "Profile"}
               </span>
             </button>
 
             {showProfileDropdown && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+              <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg z-50">
                 <button
                   type="button"
                   onClick={() => navigate("/profile")}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
                 >
-                  <User size={16} />
+                  <User size={15} />
                   View Profile
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate("/profile")}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
                 >
-                  <Settings size={16} />
+                  <Settings size={15} />
                   Settings
                 </button>
+                <div className="border-t my-1"></div>
                 <button
                   type="button"
                   onClick={logout}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                 >
-                  <LogOut size={16} />
+                  <LogOut size={15} />
                   Logout
                 </button>
               </div>
@@ -293,6 +304,7 @@ function Navbar() {
         </nav>
       </div>
 
+      {/* MOBILE MENU */}
       {open && (
         <div className="border-t border-gray-200 bg-white px-3 py-3 md:hidden">
           <div className="mb-3 relative">
@@ -301,12 +313,12 @@ function Navbar() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search people"
-              className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:outline-none"
+              placeholder="Search people..."
+              className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:outline-none"
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -353,6 +365,8 @@ function Navbar() {
               <User size={18} />
               Profile
             </button>
+
+            <div className="border-t my-2"></div>
 
             <button
               type="button"
