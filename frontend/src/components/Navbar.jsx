@@ -467,7 +467,3 @@ function Navbar() {
         }
       `}</style>
     </header>
-  );
-}
-
-export default Navbar;
