@@ -462,7 +462,9 @@ function Navbar() {
           animation: fadeIn 0.2s ease-out;
         }
         
-        
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
       `}</style>
     </header>
   );
