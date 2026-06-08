@@ -72,7 +72,10 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
     switch (followStatus) {
       case "following":
         return {
-       
+          text: "Following",
+          icon: <UserCheck size={16} className="sm:w-[18px] sm:h-[18px]" />,
+          className: "bg-gray-200 text-gray-700 hover:bg-gray-300",
+        };
       case "pending":
         return {
           text: "Pending",
