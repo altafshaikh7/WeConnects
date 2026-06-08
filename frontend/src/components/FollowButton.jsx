@@ -77,7 +77,11 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
           className: "bg-gray-200 text-gray-700 hover:bg-gray-300",
         };
       case "pending":
-       
+        return {
+          text: "Pending",
+          icon: <Clock size={16} className="sm:w-[18px] sm:h-[18px]" />,
+          className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 cursor-wait",
+        };
       default:
         return {
           text: loading ? "..." : "Follow",
