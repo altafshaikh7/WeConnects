@@ -124,8 +124,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
       className={`flex items-center gap-1 sm:gap-2 px-2 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap hover:scale-105 ${buttonConfig.className}`}
       title={followStatus === "pending" ? "Request pending" : "Click to follow"}
     >
-      {buttonConfig.icon}
-      <span>{buttonConfig.text}</span>
+    
     </button>
   );
 }
