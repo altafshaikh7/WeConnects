@@ -56,17 +56,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         { headers: getAuthHeader() }
       );
 
-      setFollowStatus("not-following");
-      setShowUnfollowModal(false);
-      onFollowChange?.(false);
-      alert(`Unfollowed ${user.name}`);
-    } catch (err) {
-      console.error("Unfollow failed:", err);
-      alert(err.response?.data?.msg || "Failed to unfollow");
-    } finally {
-      setLoading(false);
-    }
-  };
+      
 
   const getButtonConfig = () => {
     switch (followStatus) {
