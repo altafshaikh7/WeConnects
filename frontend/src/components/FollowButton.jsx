@@ -34,18 +34,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         { headers: getAuthHeader() }
       );
 
-      const nextStatus = response.data?.status === "accepted" ? "following" : "pending";
-      setFollowStatus(nextStatus);
-      onFollowChange?.(nextStatus === "following");
-      alert(nextStatus === "following" ? `You are now following ${user.name}` : `Follow request sent to ${user.name}`);
-    } catch (err) {
-      console.error("Follow failed:", err);
-      setFollowStatus(isFollowing ? "following" : "not-following");
-      alert(err.response?.data?.msg || "Failed to send follow request");
-    } finally {
-      setLoading(false);
-    }
-  };
+     
 
   const handleUnfollow = async (userId) => {
     setLoading(true);
