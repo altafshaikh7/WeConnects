@@ -42,10 +42,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
       console.error("Follow failed:", err);
       setFollowStatus(isFollowing ? "following" : "not-following");
       alert(err.response?.data?.msg || "Failed to send follow request");
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   const handleUnfollow = async (userId) => {
     setLoading(true);
