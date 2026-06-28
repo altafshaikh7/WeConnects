@@ -50,10 +50,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
   const handleUnfollow = async (userId) => {
     setLoading(true);
     try {
-      await axios.post(
-        `${API}/users/${userId}/unfollow`,
-        {},
-        { headers: getAuthHeader() }
+     
       );
 
       setFollowStatus("not-following");
