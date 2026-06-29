@@ -7,8 +7,7 @@ const crypto = require("crypto");
 const sendEmail = require("../utils/sendEmail");
 
 // ================== SIGNUP ==================
-exports.register = async (req, res) => {
-  try {
+
     const { name, email, password } = req.body;
 
     const userExists = await User.findOne({ email });
