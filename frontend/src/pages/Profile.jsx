@@ -19,21 +19,20 @@ function Profile() {
   const authHeader = token ? `Bearer ${token}` : "";
   const isOwner = !id || String(id) === String(currentUser._id);
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (profileId = id) => {
     try {
-      const endpoint = isOwner ? `${API}/profile` : `${API}/users/${id}`;
+      const endpoint = isOwner ? `${API}/profile` : `${API}/users/${profileId}`;
       const res = await axios.get(endpoint, {
         headers: { Authorization: authHeader },
       });
-      setUser(res.data);
-      
-      // If this is the current user's profile, update localStorage and notify navbar
-      if (isOwner && res.data) {
-        const updatedUser = { ...currentUser, ...res.data };
+      const profileData = res.data?.user || res.data;
+      setUser(profileData);
+
+      if (isOwner && profileData) {
+        const updatedUser = { ...currentUser, ...profileData };
         localStorage.setItem("user", JSON.stringify(updatedUser));
-        // Dispatch event to notify Navbar about profile update
-        window.dispatchEvent(new CustomEvent("profileUpdated", { 
-          detail: { user: updatedUser } 
+        window.dispatchEvent(new CustomEvent("profileUpdated", {
+          detail: { user: updatedUser },
         }));
       }
     } catch (err) {
@@ -42,9 +41,9 @@ function Profile() {
     }
   };
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (profileId = id) => {
     try {
-      const endpoint = isOwner ? `${API}/posts/me` : `${API}/users/${id}/posts`;
+      const endpoint = isOwner ? `${API}/posts/me` : `${API}/users/${profileId}/posts`;
       const res = await axios.get(endpoint, {
         headers: { Authorization: authHeader },
       });
@@ -62,9 +61,9 @@ function Profile() {
 
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchProfile(), fetchPosts()]);
-      
-      // Track profile view - only if viewing someone else's profile
+      const profileId = id || currentUser?._id;
+      await Promise.all([fetchProfile(profileId), fetchPosts(profileId)]);
+
       if (id && id !== currentUser._id) {
         try {
           await searchAPI.trackProfileView(id);
@@ -73,15 +72,16 @@ function Profile() {
           console.error("Failed to track view:", err);
         }
       }
-      
+
       setLoading(false);
     };
 
     load();
-  }, [navigate, token, id]);
+  }, [navigate, token, id, currentUser?._id]);
 
   const refreshProfile = async () => {
-    await fetchProfile();
+    const profileId = id || currentUser?._id;
+    await Promise.all([fetchProfile(profileId), fetchPosts(profileId)]);
   };
 
   const displayedPosts = posts.slice(0, postsToShow);

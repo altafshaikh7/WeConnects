@@ -12,7 +12,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
 
   useEffect(() => {
     setFollowStatus(isFollowing ? "following" : "not-following");
-  }, [isFollowing]);
+  }, [isFollowing, user?._id]);
 
   if (String(user?._id) === String(currentUser?._id) || isMutualFollower) {
     return null;
@@ -34,7 +34,7 @@ function FollowButton({ user, isFollowing, onFollowChange, isMutualFollower = fa
         { headers: getAuthHeader() }
       );
 
-      const nextStatus = response.data?.status === "accepted" ? "following" : "pending";
+      const nextStatus = response.data?.status === "following" || response.data?.relationship?.isFollowing ? "following" : "pending";
       setFollowStatus(nextStatus);
       onFollowChange?.(nextStatus === "following");
       alert(nextStatus === "following" ? `You are now following ${user.name}` : `Follow request sent to ${user.name}`);

@@ -30,6 +30,11 @@ function Feed() {
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
+  const goToProfile = (userId) => {
+    if (!userId) return;
+    navigate(`/profile/${userId}`);
+  };
+
   const getAuthHeader = () => {
     const token = localStorage.getItem("token");
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -308,12 +313,12 @@ function Feed() {
                       src={post?.user?.profileImage || "https://via.placeholder.com/40"}
                       alt="profile"
                       className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:ring-2 ring-blue-500 transition-all"
-                      onClick={() => navigate(`/profile/${post?.user?._id}`)}
+                      onClick={() => goToProfile(post?.user?._id || post?.user)}
                     />
                     <div className="flex-1 min-w-0">
                       <h4
                         className="font-semibold text-sm truncate hover:text-blue-600 cursor-pointer"
-                        onClick={() => navigate(`/profile/${post?.user?._id}`)}
+                        onClick={() => goToProfile(post?.user?._id || post?.user)}
                       >
                         {post?.user?.name || "User"}
                       </h4>
